@@ -131,7 +131,7 @@ PanelWindow {
         // --- C Backend 状态监听 (亮度/音量/电池/Caps/BT) ---
         Process {
             id: cBackendListener
-            command: ["/home/dan/.config/quickshell/island_backend"]
+            command: ["sh", "-c", "$HOME/.config/quickshell/island_backend"]
             running: true
             stdout: SplitParser {
                 onRead: data => {
