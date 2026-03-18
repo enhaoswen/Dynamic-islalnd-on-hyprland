@@ -76,9 +76,7 @@ CPU usage < 0.1%
 
 - Download 
 ```bash
-git clone https://github.com/enhaoswen/Dynamic-Island-on-Hyprland.git
-cd Dynamic-Island-on-Hyprland
-rm -rf Preview/
+git clone https://github.com/enhaoswen/Dynamic-Island-on-Hyprland.git && cd Dynamic-Island-on-Hyprland
 ```
 
 > make sure you change the program if is necessary, check important things at the end.
@@ -88,14 +86,20 @@ rm -rf Preview/
 
 ```bash
 mkdir build && cd build && cmake .. && make -j$(nproc)
+mkdir -p ~/.config/quickshell/IslandBackend
+mv *.so qmldir ~/.config/quickshell/IslandBackend/
+mv ../*.qml ~/.config/quickshell/
 ```
 
 - Clean 
 
 ```bash
-mkdir -p ~/.config/quickshell/IslandBackend
-mv libIslandBackendplugin.so qmldir ~/.config/quickshell/IslandBackend/ && mv ../*.qml ~/.config/quickshell/
-cd ../.. && rm -rf Dynamic-Island-on-Hyprland 
+cd ../.. && rm -rf Dynamic-Island-on-Hyprland
+```
+
+- To run in Hyprland:
+```bash
+QML2_IMPORT_PATH=~/.config/quickshell quickshell
 ```
 
 ## Important thing
