@@ -5,13 +5,17 @@
 
 - Pursuting lightweight, smooth anim, and low-latency performance. (Talking about some latency)
 
-## Description:
-
 ### usage:
 
 Memory usage: < 100 Mb (PSS)
 
 CPU usage < 2%
+
+## Description:
+
+https://github.com/user-attachments/assets/d05c8da3-e84e-4a5e-ac06-b6ea97578781
+
+
 
 #### style 1: normal - only show time
 
