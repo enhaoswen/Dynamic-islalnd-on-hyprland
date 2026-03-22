@@ -444,7 +444,7 @@ PanelWindow {
                             }
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter; spacing: 4
-                                Text { text: islandContainer.currentTrack; color: "white"; font.pixelSize: 16; font.family: root.textFontFamily; font.weight: Font.DemiBold; font.letterSpacing: -0.15; width: 200; elide: Text.ElideRight }
+                                Text { text: islandContainer.currentTrack; color: "white"; font.pixelSize: 16; font.family: root.textFontFamily; font.weight: Font.DemiBold; font.letterSpacing: -0.15; width: 180; elide: Text.ElideRight }
                                 Text { text: islandContainer.currentArtist; color: "#8e8e93"; font.pixelSize: 14; font.family: root.textFontFamily; font.weight: Font.Medium; width: 200; elide: Text.ElideRight }
                             }
                         }
