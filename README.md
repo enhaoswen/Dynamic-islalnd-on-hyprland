@@ -9,9 +9,9 @@
 
 ### usage:
 
-Memory usage: 30-60Mb
+Memory usage: < 100 Mb (PSS)
 
-CPU usage < 0.1%
+CPU usage < 2%
 
 #### style 1: normal - only show time
 
@@ -25,14 +25,6 @@ CPU usage < 0.1%
   <img src="Preview/Preview_2.png" width="450" alt="Preview">
 </div>
 
-<div align="left">
-  <img src="Preview/Preview_3.png" width="450" alt="Preview">
-</div>
-
-<div align="left">
-  <img src="Preview/Preview_9.png" width="450" alt="Preview">
-</div>
-
 #### style 3: long-capsules - when workspace changes
 
 <div align="left">
@@ -42,35 +34,48 @@ CPU usage < 0.1%
 #### style 4: control-center - when right click
 
 <div align="left">
-  <img src="Preview/Preview_7.png" width="450" alt="Preview">
+  <img src="Preview/Preview_3.png" width="450" alt="Preview">
 </div>
 
 
 #### style 5: expanded - when click/ song changes
 
 <div align="left">
-  <img src="Preview/Preview_6.png" width="450" alt="Preview">
+  <img src="Preview/Preview_4.png" width="450" alt="Preview">
 </div>
 
 ### Dependencies:
 
-- Quickshell
+#### Build-time Dependencies (Compiling the backend)
+- CMake (>= 3.16)
 
-- Qt6 (base & declarative)
+- C++17 Compiler (GCC or Clang)
+
+- Qt6 SDK: Specifically Core, Qml, Network, and DBus modules
+
+- libudev-dev: Required for monitoring battery status via udev
+
+#### Runtime Environment
 
 - Hyprland
 
-- cmake
+- Quickshell
 
-- gcc
+- pactl
 
-- pactl & pipewire
+- wpctl
 
-- MPRIS-compatible player 
+- UPower DBus service and access to /sys/class/power_supply
 
-- JetBrainsMono Nerd Font (necessary)
+#### Assets & Scripts
 
-- Custom scripts
+- JetBrainsMono Nerd Font (For icons and mono text)
+
+- Inter & Inter Display (For UI text)
+
+- custom scripts
+
+>The control center expects the following scripts to exist in ~/.config/quickshell/: wifi-menu.sh, bluetooth-menu.sh, wallpaper-switch.sh, powermenu.
 
 ### Compile & run:
 
@@ -104,4 +109,8 @@ QML2_IMPORT_PATH=~/.config/quickshell quickshell
 
 ## Important thing
 
-**For custom scripts, please make your own and change the path in shell.qml:465 (check Comment)**
+- **For custom scripts, please make your own and change the path in shell.qml:465 (check Comment)**
+
+- **The backend is hardcoded to read /sys/class/backlight/intel_backlight/. If you are using AMD or a different backlight driver, please update the path (SysBackend.cpp:353).**
+
+- **The status of caps lock is currently polled via hyprctl devices. Ensure hyprctl is in your $PATH.**
