@@ -13,8 +13,8 @@ CPU usage < 2%
 
 ## Description:
 
-https://github.com/user-attachments/assets/d05c8da3-e84e-4a5e-ac06-b6ea97578781
 
+https://github.com/user-attachments/assets/306535e1-1a50-4a0f-a979-d056fa510c9e
 
 
 #### style 1: normal - only show time
