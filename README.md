@@ -3,8 +3,7 @@
 
 - Based on Quickshell and C++ /Qt 6.
 
-- Pursuting lightweight, smooth anim, and low-latency performance. (Talking about some latency)
-
+- Pursuting lightweight, smooth anim, and low-latency performance. 
 ### usage:
 
 Memory usage: < 100 Mb (PSS)
@@ -17,33 +16,38 @@ CPU usage < 2%
 https://github.com/user-attachments/assets/306535e1-1a50-4a0f-a979-d056fa510c9e
 
 
-#### style 1: normal - only show time
+#### Clock Mode
 
 <div align="left">
   <img src="Preview/Preview_1.png" width="450" alt="Preview">
 </div>
 
-#### style 2: split - when brightness, volume, bluetooth, etc. changes
+#### System Notifications
 
 <div align="left">
   <img src="Preview/Preview_2.png" width="450" alt="Preview">
 </div>
 
-#### style 3: long-capsules - when workspace changes
+####  Workspace Indicator
 
 <div align="left">
   <img src="Preview/Preview_5.png" width="450" alt="Preview">
 </div>
 
-#### style 4: control-center - when right click
+#### Lyrics
+
+<div align="left">
+  <img src="Preview/Preview_6.png" width="450" alt="Preview">
+</div>
+
+#### Control Center
 
 <div align="left">
   <img src="Preview/Preview_3.png" width="450" alt="Preview">
 </div>
 
 
-#### style 5: expanded - when click/ song changes
-
+####  Music Player
 <div align="left">
   <img src="Preview/Preview_4.png" width="450" alt="Preview">
 </div>
