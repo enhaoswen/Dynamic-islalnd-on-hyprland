@@ -8,6 +8,7 @@ Item {
     property string textFontFamily: "Inter"
     property string timeFontFamily: "Inter Display"
     property bool showCondition: false
+    property bool showSecondaryText: true
     property real transitionProgress: 0
     property int textPixelSize: 16
     property real minimumWidth: 220
@@ -138,7 +139,7 @@ Item {
     }
 
     Text {
-        visible: timeText !== ""
+        visible: timeText !== "" && showSecondaryText
         x: timeX
         width: textWidth
         anchors.verticalCenter: parent.verticalCenter

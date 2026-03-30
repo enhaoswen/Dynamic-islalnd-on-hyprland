@@ -5,9 +5,11 @@
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
 #include <libudev.h>
 
 SysBackend::SysBackend(QObject *parent)
@@ -18,7 +20,14 @@ SysBackend::SysBackend(QObject *parent)
       m_batteryNotifier(nullptr),
       m_audioDebounceTimer(nullptr),
       m_capsPollTimer(nullptr),
+      m_lyricsProcess(nullptr),
+      m_lyricsRestartTimer(nullptr),
       m_maxBrightness(1.0),
+      m_lyricsStdoutBuffer(),
+      m_lyricsExecutablePath(),
+      m_lyricsCurrentLyric(),
+      m_lyricsBackendStatus("idle"),
+      m_lyricsIsSynced(false),
       m_batteryCap(0),
       m_batteryStatus("Unknown"),
       m_upowerBatteryPath(),
@@ -33,6 +42,7 @@ SysBackend::SysBackend(QObject *parent)
     setupAudio();
     setupBrightness();
     setupKeyboard();
+    setupLyrics();
 }
 
 SysBackend::~SysBackend() {
@@ -46,6 +56,18 @@ int SysBackend::batteryCapacity() const {
 
 QString SysBackend::batteryStatus() const {
     return m_batteryStatus;
+}
+
+QString SysBackend::lyricsCurrentLyric() const {
+    return m_lyricsCurrentLyric;
+}
+
+bool SysBackend::lyricsIsSynced() const {
+    return m_lyricsIsSynced;
+}
+
+QString SysBackend::lyricsBackendStatus() const {
+    return m_lyricsBackendStatus;
 }
 
 QString SysBackend::readSysfsTextFile(const QString &path) const {
@@ -492,4 +514,156 @@ void SysBackend::checkDefaultAudioDevice() {
         qDebug() << "[Bluetooth Debug] Default sink:" << sinkName << "-> Is BT:" << m_isBluetoothAudio;
         emit bluetoothChanged(m_isBluetoothAudio);
     }
+}
+
+void SysBackend::setupLyrics() {
+    m_lyricsProcess = new QProcess(this);
+    m_lyricsRestartTimer = new QTimer(this);
+    m_lyricsRestartTimer->setSingleShot(true);
+    m_lyricsRestartTimer->setInterval(3000);
+
+    connect(m_lyricsRestartTimer, &QTimer::timeout, this, &SysBackend::startLyricsBackend);
+    connect(m_lyricsProcess, &QProcess::readyReadStandardOutput, this, &SysBackend::handleLyricsReadyRead);
+    connect(m_lyricsProcess, &QProcess::readyReadStandardError, this, &SysBackend::handleLyricsStderr);
+    connect(m_lyricsProcess, &QProcess::stateChanged, this, &SysBackend::handleLyricsProcessStateChanged);
+    connect(m_lyricsProcess, &QProcess::errorOccurred, this, &SysBackend::handleLyricsProcessError);
+    connect(m_lyricsProcess, &QProcess::finished, this, &SysBackend::handleLyricsProcessFinished);
+
+    startLyricsBackend();
+}
+
+QString SysBackend::findLyricsBackendExecutable() const {
+    const QString homeDir = QDir::homePath();
+    const QString envPath = qEnvironmentVariable("QUICKSHELL_LYRICS_BACKEND");
+    const QString pathExecutable = QStandardPaths::findExecutable("lyricsmpris");
+    const QStringList candidates = {
+        envPath,
+        homeDir + "/.config/quickshell/bin/lyricsmpris",
+        homeDir + "/.local/bin/lyricsmpris",
+        homeDir + "/.cargo/bin/lyricsmpris",
+        pathExecutable
+    };
+
+    for (const QString &candidate : candidates) {
+        if (candidate.isEmpty()) continue;
+        const QFileInfo fileInfo(candidate);
+        if (fileInfo.exists() && fileInfo.isFile() && fileInfo.isExecutable()) return fileInfo.absoluteFilePath();
+    }
+
+    return QString();
+}
+
+void SysBackend::setLyricsCurrentLyric(const QString &lyric) {
+    if (m_lyricsCurrentLyric == lyric) return;
+    m_lyricsCurrentLyric = lyric;
+    emit lyricsCurrentLyricChanged();
+}
+
+void SysBackend::setLyricsIsSynced(bool synced) {
+    if (m_lyricsIsSynced == synced) return;
+    m_lyricsIsSynced = synced;
+    emit lyricsIsSyncedChanged();
+}
+
+void SysBackend::setLyricsBackendStatus(const QString &status) {
+    if (m_lyricsBackendStatus == status) return;
+    m_lyricsBackendStatus = status;
+    emit lyricsBackendStatusChanged();
+}
+
+void SysBackend::startLyricsBackend() {
+    if (!m_lyricsProcess) return;
+    if (m_lyricsProcess->state() != QProcess::NotRunning) return;
+
+    m_lyricsExecutablePath = findLyricsBackendExecutable();
+    if (m_lyricsExecutablePath.isEmpty()) {
+        qWarning() << "[Lyrics] lyricsmpris executable not found";
+        setLyricsCurrentLyric("");
+        setLyricsIsSynced(false);
+        setLyricsBackendStatus("missing");
+        return;
+    }
+
+    const QString cacheDir = QDir::homePath() + "/.cache/quickshell/lyricsmpris";
+    QDir().mkpath(cacheDir);
+    m_lyricsStdoutBuffer.clear();
+    setLyricsCurrentLyric("");
+    setLyricsIsSynced(false);
+    setLyricsBackendStatus("starting");
+
+    // playerctld is required by LyricsMPRIS-Rust for active-player selection.
+    QProcess::startDetached("playerctld", QStringList() << "daemon");
+
+    m_lyricsProcess->setProgram(m_lyricsExecutablePath);
+    m_lyricsProcess->setArguments({
+        "--pipe",
+        "--database",
+        cacheDir + "/cache.db"
+    });
+    m_lyricsProcess->start();
+}
+
+void SysBackend::handleLyricsReadyRead() {
+    if (!m_lyricsProcess) return;
+
+    m_lyricsStdoutBuffer.append(m_lyricsProcess->readAllStandardOutput());
+
+    while (m_lyricsStdoutBuffer.contains('\n')) {
+        const int newlineIndex = m_lyricsStdoutBuffer.indexOf('\n');
+        const QByteArray rawLine = m_lyricsStdoutBuffer.left(newlineIndex);
+        m_lyricsStdoutBuffer.remove(0, newlineIndex + 1);
+
+        const QString lyricLine = QString::fromUtf8(rawLine).trimmed();
+        if (lyricLine.isEmpty()) {
+            setLyricsCurrentLyric("");
+            setLyricsIsSynced(false);
+            if (m_lyricsProcess->state() == QProcess::Running) setLyricsBackendStatus("running");
+            continue;
+        }
+
+        setLyricsCurrentLyric(lyricLine);
+        setLyricsIsSynced(true);
+        setLyricsBackendStatus("synced");
+    }
+}
+
+void SysBackend::handleLyricsProcessStateChanged(QProcess::ProcessState state) {
+    if (state == QProcess::Running && !m_lyricsIsSynced) {
+        setLyricsBackendStatus("running");
+    }
+}
+
+void SysBackend::handleLyricsProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    Q_UNUSED(exitCode)
+    Q_UNUSED(exitStatus)
+
+    setLyricsCurrentLyric("");
+    setLyricsIsSynced(false);
+
+    if (!m_lyricsExecutablePath.isEmpty()) {
+        setLyricsBackendStatus("error");
+        m_lyricsRestartTimer->start();
+    }
+}
+
+void SysBackend::handleLyricsProcessError(QProcess::ProcessError error) {
+    setLyricsCurrentLyric("");
+    setLyricsIsSynced(false);
+
+    if (error == QProcess::FailedToStart) {
+        setLyricsBackendStatus("missing");
+        return;
+    }
+
+    setLyricsBackendStatus("error");
+    if (m_lyricsRestartTimer && !m_lyricsRestartTimer->isActive()) m_lyricsRestartTimer->start();
+}
+
+void SysBackend::handleLyricsStderr() {
+    if (!m_lyricsProcess) return;
+
+    const QString stderrText = QString::fromUtf8(m_lyricsProcess->readAllStandardError()).trimmed();
+    if (stderrText.isEmpty()) return;
+
+    qWarning().noquote() << "[Lyrics]" << stderrText;
 }

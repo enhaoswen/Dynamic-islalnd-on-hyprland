@@ -20,6 +20,9 @@ class SysBackend : public QObject {
     QML_SINGLETON
     Q_PROPERTY(int batteryCapacity READ batteryCapacity NOTIFY batteryCapacityChanged FINAL)
     Q_PROPERTY(QString batteryStatus READ batteryStatus NOTIFY batteryStatusChanged FINAL)
+    Q_PROPERTY(QString lyricsCurrentLyric READ lyricsCurrentLyric NOTIFY lyricsCurrentLyricChanged FINAL)
+    Q_PROPERTY(bool lyricsIsSynced READ lyricsIsSynced NOTIFY lyricsIsSyncedChanged FINAL)
+    Q_PROPERTY(QString lyricsBackendStatus READ lyricsBackendStatus NOTIFY lyricsBackendStatusChanged FINAL)
 
 public:
     explicit SysBackend(QObject *parent = nullptr);
@@ -27,6 +30,9 @@ public:
 
     int batteryCapacity() const;
     QString batteryStatus() const;
+    QString lyricsCurrentLyric() const;
+    bool lyricsIsSynced() const;
+    QString lyricsBackendStatus() const;
 
 signals:
     void workspaceChanged(int wsId);
@@ -37,6 +43,9 @@ signals:
     void batteryStatusChanged(const QString &statusString);
     void batteryChanged(int capacity, const QString &statusString);
     void bluetoothChanged(bool isConnected);
+    void lyricsCurrentLyricChanged();
+    void lyricsIsSyncedChanged();
+    void lyricsBackendStatusChanged();
 
 private slots:
     void handleHyprlandData();
@@ -50,6 +59,12 @@ private slots:
     void updateBatterySysfs();
     void updateBatteryUpower();
     void handleAudioRefresh();
+    void startLyricsBackend();
+    void handleLyricsReadyRead();
+    void handleLyricsProcessStateChanged(QProcess::ProcessState state);
+    void handleLyricsProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void handleLyricsProcessError(QProcess::ProcessError error);
+    void handleLyricsStderr();
 
 private:
     void setupHyprland();
@@ -58,6 +73,7 @@ private:
     void setupAudio();
     void setupBrightness();
     void setupKeyboard();
+    void setupLyrics();
     bool queryBluetoothAudioConnected();
     void checkDefaultAudioDevice();
     void detectPowerSupplyPaths();
@@ -65,6 +81,10 @@ private:
     QString readSysfsTextFile(const QString &path) const;
     void updateBatteryState(int capacity, const QString &statusString);
     QString upowerStateToBatteryStatus(uint state) const;
+    QString findLyricsBackendExecutable() const;
+    void setLyricsCurrentLyric(const QString &lyric);
+    void setLyricsIsSynced(bool synced);
+    void setLyricsBackendStatus(const QString &status);
 
     bool m_isBluetoothAudio = false;
     QLocalSocket *m_hyprSocket;
@@ -74,7 +94,14 @@ private:
     QSocketNotifier *m_batteryNotifier;
     QTimer *m_audioDebounceTimer;
     QTimer *m_capsPollTimer;
+    QProcess *m_lyricsProcess;
+    QTimer *m_lyricsRestartTimer;
     double m_maxBrightness;
+    QByteArray m_lyricsStdoutBuffer;
+    QString m_lyricsExecutablePath;
+    QString m_lyricsCurrentLyric;
+    QString m_lyricsBackendStatus;
+    bool m_lyricsIsSynced;
 
     QString m_batteryPath;
     QString m_acPath;

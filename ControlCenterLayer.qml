@@ -19,7 +19,6 @@ Item {
     property real volumeLevel: -1
     property real brightnessLevel: -1
     property int currentWorkspace: 1
-    property string workspaceIcon: userConfig.defaultWorkspaceIcon
     property string currentTrack: ""
     property string currentArtist: ""
 
@@ -92,46 +91,36 @@ Item {
         volumeApplyTimer.restart();
     }
 
+    function syncBrightnessFromLevel(level) {
+        if (level < 0) return;
+        localBrightness = clamp01(level);
+        pendingBrightness = localBrightness;
+        lastAppliedBrightness = localBrightness;
+    }
+
+    function syncVolumeFromLevel(level) {
+        if (level < 0) return;
+        localVolume = clamp01(level);
+        pendingVolume = localVolume;
+        lastAppliedVolume = localVolume;
+    }
+
+    function syncLevelsFromProps() {
+        syncBrightnessFromLevel(brightnessLevel);
+        syncVolumeFromLevel(volumeLevel);
+    }
+
     anchors.fill: parent
     anchors.margins: 12
     opacity: showCondition ? 1 : 0
     visible: opacity > 0
 
-    onBrightnessLevelChanged: if (brightnessLevel >= 0) {
-        localBrightness = clamp01(brightnessLevel)
-        pendingBrightness = localBrightness
-        lastAppliedBrightness = localBrightness
-    }
-    onVolumeLevelChanged: if (volumeLevel >= 0) {
-        localVolume = clamp01(volumeLevel)
-        pendingVolume = localVolume
-        lastAppliedVolume = localVolume
-    }
-
-    onShowConditionChanged: if (showCondition) {
-        if (brightnessLevel >= 0) {
-            localBrightness = clamp01(brightnessLevel)
-            pendingBrightness = localBrightness
-            lastAppliedBrightness = localBrightness
-        }
-        if (volumeLevel >= 0) {
-            localVolume = clamp01(volumeLevel)
-            pendingVolume = localVolume
-            lastAppliedVolume = localVolume
-        }
-    }
+    onBrightnessLevelChanged: syncBrightnessFromLevel(brightnessLevel)
+    onVolumeLevelChanged: syncVolumeFromLevel(volumeLevel)
+    onShowConditionChanged: if (showCondition) syncLevelsFromProps()
 
     Component.onCompleted: {
-        if (brightnessLevel >= 0) {
-            localBrightness = clamp01(brightnessLevel);
-            pendingBrightness = localBrightness;
-            lastAppliedBrightness = localBrightness;
-        }
-        if (volumeLevel >= 0) {
-            localVolume = clamp01(volumeLevel);
-            pendingVolume = localVolume;
-            lastAppliedVolume = localVolume;
-        }
+        syncLevelsFromProps();
         brightnessGetter.exec(["brightnessctl", "-m"]);
         volumeGetter.exec(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]);
     }

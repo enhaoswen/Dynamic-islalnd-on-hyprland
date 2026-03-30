@@ -2,7 +2,6 @@ import QtQuick
 
 QtObject {
     id: userConfig
-    property string defaultWorkspaceIcon: ""
 
     property var scriptPaths: ({
         button_1: "~/.config/quickshell/wifi-menu.sh",
@@ -24,21 +23,6 @@ QtObject {
         "volume": "󰕾"
     })
 
-    property var workspaceIcons: ({
-        "1": "",
-        "2": "",
-        "3": "",
-        "4": "",
-        "5": "",
-        "6": "󰙯",
-        "7": "󰈙",
-        "8": "󰇮",
-        "9": "󰊴",
-        "10": "",
-        "urgent": "",
-        "default": defaultWorkspaceIcon
-    })
-
     property var statusIcons: ({
         "default": "🎧",
         "volume": "󰕾",
@@ -52,9 +36,4 @@ QtObject {
         "capsLockOff": "",
         "bluetooth": "󰋋"
     })
-
-    function workspaceIcon(wsId) {
-        const key = String(wsId);
-        return workspaceIcons[key] || workspaceIcons["default"];
-    }
 }

@@ -2,6 +2,8 @@ import QtQuick
 import Quickshell.Services.Mpris
 
 Item {
+    signal controlPressed()
+
     property bool showCondition: false
     property string currentArtUrl: ""
     property string currentTrack: ""
@@ -26,6 +28,22 @@ Item {
     function pausedVisualizerLevel(index) {
         const levels = [0.34, 0.58, 0.82, 0.58, 0.34];
         return levels[index] || 0.4;
+    }
+
+    function togglePlayback() {
+        if (!activePlayer || !activePlayer.canControl) return;
+
+        if (activePlayer.canTogglePlaying) {
+            activePlayer.togglePlaying();
+            return;
+        }
+
+        if (activePlayer.playbackState === MprisPlaybackState.Playing) {
+            if (activePlayer.canPause) activePlayer.pause();
+            return;
+        }
+
+        if (activePlayer.canPlay) activePlayer.play();
     }
 
     anchors.fill: parent
@@ -244,6 +262,11 @@ Item {
                         id: prevArea
                         anchors.fill: parent
                         anchors.margins: -15
+                        preventStealing: true
+                        onPressed: (mouse) => {
+                            controlPressed();
+                            mouse.accepted = true;
+                        }
                         onClicked: if (activePlayer) activePlayer.previous()
                     }
                 }
@@ -293,11 +316,12 @@ Item {
                         id: playArea
                         anchors.fill: parent
                         anchors.margins: -15
-                        onClicked: {
-                            if (!activePlayer) return;
-                            if (activePlayer.playbackState === MprisPlaybackState.Playing) activePlayer.pause();
-                            else activePlayer.play();
+                        preventStealing: true
+                        onPressed: (mouse) => {
+                            controlPressed();
+                            mouse.accepted = true;
                         }
+                        onClicked: togglePlayback()
                     }
                 }
 
@@ -341,6 +365,11 @@ Item {
                         id: nextArea
                         anchors.fill: parent
                         anchors.margins: -15
+                        preventStealing: true
+                        onPressed: (mouse) => {
+                            controlPressed();
+                            mouse.accepted = true;
+                        }
                         onClicked: if (activePlayer) activePlayer.next()
                     }
                 }
