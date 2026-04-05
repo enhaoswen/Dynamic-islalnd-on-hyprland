@@ -131,7 +131,7 @@ cd ../.. && rm -rf Dynamic-Island-on-Hyprland
 
 - To run in Hyprland:
 ```bash
-QML2_IMPORT_PATH=~/.config/quickshell quickshell -p ~/.config/quickshell/dynamic_island/main.qml
+QML2_IMPORT_PATH=~/.config/quickshell quickshell -p ~/.config/quickshell/dynamic_island/shell.qml
 ```
 ## Acknowledgments
 
