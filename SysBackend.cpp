@@ -6,6 +6,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFileInfo>
+#include <QDirIterator>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -534,15 +535,26 @@ void SysBackend::setupLyrics() {
 
 QString SysBackend::findLyricsBackendExecutable() const {
     const QString homeDir = QDir::homePath();
+    const QString quickshellConfigDir = homeDir + "/.config/quickshell";
     const QString envPath = qEnvironmentVariable("QUICKSHELL_LYRICS_BACKEND");
     const QString pathExecutable = QStandardPaths::findExecutable("lyricsmpris");
-    const QStringList candidates = {
+    QStringList candidates = {
         envPath,
-        homeDir + "/.config/quickshell/bin/lyricsmpris",
+        quickshellConfigDir + "/bin/lyricsmpris",
         homeDir + "/.local/bin/lyricsmpris",
         homeDir + "/.cargo/bin/lyricsmpris",
         pathExecutable
     };
+
+    QDirIterator configIterator(
+        quickshellConfigDir,
+        QDir::Dirs | QDir::NoDotAndDotDot,
+        QDirIterator::NoIteratorFlags
+    );
+    while (configIterator.hasNext()) {
+        const QString configDirPath = configIterator.next();
+        candidates.insert(1, configDirPath + "/bin/lyricsmpris");
+    }
 
     for (const QString &candidate : candidates) {
         if (candidate.isEmpty()) continue;
