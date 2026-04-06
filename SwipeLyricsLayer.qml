@@ -145,6 +145,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: timeText
         color: "white"
+        opacity: 1 - clampedProgress
         font.pixelSize: textPixelSize + 1
         font.family: timeFontFamily
         font.weight: Font.Bold

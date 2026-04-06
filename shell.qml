@@ -150,6 +150,9 @@ PanelWindow {
         property bool isCharging: SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"
         property real currentVolume: -1
         property real currentBrightness: -1
+        property string notificationAppName: ""
+        property string notificationSummary: ""
+        property string notificationBody: ""
         property string _lastChargeStatus: SysBackend.batteryStatus
         property string _pendingVolType: ""
         property real   _pendingVolVal:  0.0
@@ -162,8 +165,12 @@ PanelWindow {
         property string restingState: "normal"
         property bool expandedByPlayerAutoOpen: false
         property real lyricsCapsuleWidth: 220
+        readonly property int defaultAutoHideInterval: 1250
+        readonly property int notificationAutoHideInterval: 4200
         readonly property int swipeAnimationDuration: 220
-        readonly property bool blocksTransientSplit: islandState === "expanded" || islandState === "control_center"
+        readonly property bool blocksTransientSplit: islandState === "expanded"
+            || islandState === "control_center"
+            || islandState === "notification"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
@@ -219,11 +226,24 @@ PanelWindow {
         function clearTransientCapsule() {
             setOsdProgress(-1.0, false);
             osdCustomText = "";
+            notificationAppName = "";
+            notificationSummary = "";
+            notificationBody = "";
         }
 
         function applyRestingVisuals() {
             swipeTransitionProgress = restingState === "lyrics" ? 1 : 0;
             if (restingState === "lyrics") syncLyricsCapsuleWidth();
+        }
+
+        function restartAutoHideTimer(duration) {
+            autoHideTimer.interval = duration === undefined ? defaultAutoHideInterval : duration;
+            autoHideTimer.restart();
+        }
+
+        function stopAutoHideTimer() {
+            autoHideTimer.stop();
+            autoHideTimer.interval = defaultAutoHideInterval;
         }
 
         function showTransientCapsule(icon, progress, customText) {
@@ -240,7 +260,26 @@ PanelWindow {
             osdCustomText = customText;
             setOsdProgress(nextProgress, animateProgress);
             islandState = "split";
-            autoHideTimer.restart();
+            restartAutoHideTimer();
+        }
+
+        function showNotificationCapsule(appName, summary, body) {
+            if (root.overviewVisible || islandState === "control_center" || islandState === "expanded") return;
+
+            const cleanedAppName = cleanNotificationText(appName);
+            const cleanedSummary = cleanNotificationText(summary);
+            const cleanedBody = cleanNotificationText(body);
+            const resolvedSummary = cleanedSummary !== ""
+                ? cleanedSummary
+                : (cleanedBody !== "" ? cleanedBody : "New notification");
+
+            abortWorkspaceFromLyricsMode();
+            clearTransientCapsule();
+            notificationAppName = cleanedAppName !== "" ? cleanedAppName : "Notification";
+            notificationSummary = resolvedSummary;
+            notificationBody = cleanedSummary !== "" ? cleanedBody : "";
+            islandState = "notification";
+            restartAutoHideTimer(notificationAutoHideInterval);
         }
 
         function suppressCapsuleClick() {
@@ -255,7 +294,7 @@ PanelWindow {
                 clearTransientCapsule();
                 expandedByPlayerAutoOpen = false;
                 swipeTransitionProgress = 1;
-                autoHideTimer.stop();
+                stopAutoHideTimer();
                 lyricsWorkspaceRestoreTimer.restart();
                 return;
             }
@@ -265,6 +304,7 @@ PanelWindow {
             clearTransientCapsule();
             applyRestingVisuals();
             expandedByPlayerAutoOpen = false;
+            stopAutoHideTimer();
         }
 
         function setRestingState(nextState) {
@@ -278,7 +318,7 @@ PanelWindow {
         function showRestingCapsule(nextState) {
             setRestingState(nextState);
             restoreRestingCapsule();
-            autoHideTimer.stop();
+            stopAutoHideTimer();
         }
 
         function showExpandedPlayer(autoOpened) {
@@ -286,15 +326,15 @@ PanelWindow {
             clearTransientCapsule();
             islandState = "expanded";
             expandedByPlayerAutoOpen = autoOpened;
-            if (autoOpened) autoHideTimer.restart();
-            else autoHideTimer.stop();
+            if (autoOpened) restartAutoHideTimer();
+            else stopAutoHideTimer();
         }
 
         function showControlCenter() {
             abortWorkspaceFromLyricsMode();
             clearTransientCapsule();
             islandState = "control_center";
-            autoHideTimer.stop();
+            stopAutoHideTimer();
         }
 
         function showLyricsCapsule() {
@@ -307,7 +347,7 @@ PanelWindow {
 
         function showWorkspaceCapsule(wsId) {
             currentWs = wsId;
-            if (islandState === "control_center") return;
+            if (islandState === "control_center" || islandState === "notification") return;
             const animateFromLyrics = islandState === "lyrics"
                 || (islandState === "long_capsule" && workspaceFromLyricsMode);
             clearTransientCapsule();
@@ -315,7 +355,7 @@ PanelWindow {
             workspaceFromLyricsMode = animateFromLyrics;
             islandState = "long_capsule";
             swipeTransitionProgress = 0;
-            autoHideTimer.restart();
+            restartAutoHideTimer();
         }
 
         function brightnessStatusIcon(value) {
@@ -324,7 +364,7 @@ PanelWindow {
             return userConfig.statusIcons["brightnessHigh"];
         }
 
-        Timer { id: autoHideTimer; interval: 1250; onTriggered: islandContainer.smartRestoreState() }
+        Timer { id: autoHideTimer; interval: islandContainer.defaultAutoHideInterval; onTriggered: islandContainer.smartRestoreState() }
         Timer {
             id: osdProgressAnimationReset
             interval: 0
@@ -460,6 +500,18 @@ PanelWindow {
             return parsed;
         }
 
+        function cleanNotificationText(text) {
+            return String(text === undefined || text === null ? "" : text)
+                .replace(/<[^>]*>/g, " ")
+                .replace(/&nbsp;/g, " ")
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, "\"")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+
         function playerHasTrackInfo(player) {
             if (!player) return false;
             if ((player.trackTitle || player.title || "") !== "") return true;
@@ -533,6 +585,113 @@ PanelWindow {
         }
 
         QtObject {
+            id: notificationBridge
+
+            property bool captureActive: false
+            property int captureStage: -1
+            property string pendingAppName: ""
+            property string pendingSummary: ""
+            property string pendingBody: ""
+
+            function resetCapture() {
+                captureActive = false;
+                captureStage = -1;
+                pendingAppName = "";
+                pendingSummary = "";
+                pendingBody = "";
+            }
+
+            function beginCapture() {
+                resetCapture();
+                captureActive = true;
+                captureStage = 0;
+            }
+
+            function decodeMonitorString(line) {
+                const match = line.match(/^\s*string "(.*)"\s*$/);
+                if (!match) return "";
+
+                try {
+                    return JSON.parse("\"" + match[1] + "\"");
+                } catch (error) {
+                    return match[1]
+                        .replace(/\\"/g, "\"")
+                        .replace(/\\\\/g, "\\");
+                }
+            }
+
+            function commitCapture() {
+                islandContainer.showNotificationCapsule(pendingAppName, pendingSummary, pendingBody);
+                resetCapture();
+            }
+
+            function handleLine(rawLine) {
+                const line = String(rawLine === undefined || rawLine === null ? "" : rawLine).trim();
+                if (line === "") return;
+
+                if (line.indexOf("member=Notify") !== -1) {
+                    beginCapture();
+                    return;
+                }
+
+                if (!captureActive) return;
+
+                switch (captureStage) {
+                case 0:
+                    if (!line.startsWith("string ")) return;
+                    pendingAppName = decodeMonitorString(line);
+                    captureStage = 1;
+                    return;
+                case 1:
+                    if (!line.startsWith("uint32 ")) return;
+                    captureStage = 2;
+                    return;
+                case 2:
+                    if (!line.startsWith("string ")) return;
+                    captureStage = 3;
+                    return;
+                case 3:
+                    if (!line.startsWith("string ")) return;
+                    pendingSummary = decodeMonitorString(line);
+                    captureStage = 4;
+                    return;
+                case 4:
+                    if (!line.startsWith("string ")) return;
+                    pendingBody = decodeMonitorString(line);
+                    commitCapture();
+                    return;
+                default:
+                    resetCapture();
+                }
+            }
+        }
+
+        Timer {
+            id: notificationMonitorRestartTimer
+            interval: 1200
+            repeat: false
+            onTriggered: notificationMonitor.running = true
+        }
+
+        Process {
+            id: notificationMonitor
+            running: true
+            command: [
+                "dbus-monitor",
+                "--session",
+                "type='method_call',interface='org.freedesktop.Notifications',member='Notify'"
+            ]
+            stdout: SplitParser {
+                splitMarker: "\n"
+
+                onRead: function(data) {
+                    notificationBridge.handleLine(data);
+                }
+            }
+            onExited: notificationMonitorRestartTimer.restart()
+        }
+
+        QtObject {
             id: lyricsBridge
 
             readonly property string title: islandContainer.currentTrack
@@ -585,7 +744,8 @@ PanelWindow {
 
         onCurrentTrackChanged: {
             if (currentTrack !== ""
-                    && islandState !== "control_center") {
+                    && islandState !== "control_center"
+                    && islandState !== "notification") {
                 if (islandState === "expanded" && !expandedByPlayerAutoOpen) return;
                 showExpandedPlayer(true);
             }
@@ -610,6 +770,8 @@ PanelWindow {
                     return 420;
                 case "expanded":
                     return 400;
+                case "notification":
+                    return Math.max(notificationLayer.minimumWidth, Math.min(notificationLayer.maximumWidth, notificationLayer.preferredWidth));
                 default:
                     return 140;
                 }
@@ -622,6 +784,8 @@ PanelWindow {
                     return 292;
                 case "expanded":
                     return 165;
+                case "notification":
+                    return Math.max(56, Math.min(68, notificationLayer.preferredHeight));
                 default:
                     return 38;
                 }
@@ -634,6 +798,8 @@ PanelWindow {
                     return 34;
                 case "expanded":
                     return 40;
+                case "notification":
+                    return mainCapsule.targetHeight / 2;
                 default:
                     return 19;
                 }
@@ -832,6 +998,18 @@ PanelWindow {
                 textFontFamily: root.textFontFamily
                 showCondition: !root.overviewVisible && islandContainer.islandState === "expanded"
                 onControlPressed: islandContainer.suppressCapsuleClick()
+            }
+
+            NotificationLayer {
+                id: notificationLayer
+                appName: islandContainer.notificationAppName
+                summary: islandContainer.notificationSummary
+                body: islandContainer.notificationBody
+                iconText: userConfig.statusIcons["notification"]
+                iconFontFamily: root.iconFontFamily
+                textFontFamily: root.textFontFamily
+                heroFontFamily: root.heroFontFamily
+                showCondition: !root.overviewVisible && islandContainer.islandState === "notification"
             }
 
             ControlCenterLayer {

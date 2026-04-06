@@ -28,6 +28,7 @@ QtObject {
 
     property var statusIcons: ({
         "default": "🎧",
+        "notification": "",
         "volume": "󰕾",
         "mute": "󰝟",
         "brightnessLow": "󰃞",
