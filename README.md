@@ -82,11 +82,9 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
 
 #### Assets & Scripts
 
-- JetBrainsMono Nerd Font (For icons and mono text)
+- Any nerd font (for icon) && any font (for text) 
 
-- Inter & Inter Display (For UI text)
-
-- custom scripts
+- custom scripts for control center (option)
 
 >Please rewrite the script path in UserConfig.qml
 
