@@ -18,16 +18,20 @@ Item {
     property bool isCharging: false
     property real volumeLevel: -1
     property real brightnessLevel: -1
+    property int sliderIntroDelay: 400
     property int currentWorkspace: 1
     property string currentTrack: ""
     property string currentArtist: ""
 
     property real localVolume: 0.5
     property real localBrightness: 0.5
+    property real displayedVolume: 0.5
+    property real displayedBrightness: 0.5
     property real pendingVolume: 0.5
     property real pendingBrightness: 0.5
     property real lastAppliedVolume: -1
     property real lastAppliedBrightness: -1
+    property bool sliderIntroPending: false
     readonly property real sliderKnobSize: 24
     readonly property color panelColor: "#000000"
     readonly property color moduleColor: "#1c1c1e"
@@ -69,6 +73,7 @@ Item {
 
     function queueBrightness(value) {
         localBrightness = clamp01(value);
+        if (showCondition && !sliderIntroPending) displayedBrightness = localBrightness;
         pendingBrightness = localBrightness;
         brightnessApplyTimer.restart();
     }
@@ -87,6 +92,7 @@ Item {
 
     function queueVolume(value) {
         localVolume = clamp01(value);
+        if (showCondition && !sliderIntroPending) displayedVolume = localVolume;
         pendingVolume = localVolume;
         volumeApplyTimer.restart();
     }
@@ -94,6 +100,7 @@ Item {
     function syncBrightnessFromLevel(level) {
         if (level < 0) return;
         localBrightness = clamp01(level);
+        if (showCondition && !sliderIntroPending) displayedBrightness = localBrightness;
         pendingBrightness = localBrightness;
         lastAppliedBrightness = localBrightness;
     }
@@ -101,6 +108,7 @@ Item {
     function syncVolumeFromLevel(level) {
         if (level < 0) return;
         localVolume = clamp01(level);
+        if (showCondition && !sliderIntroPending) displayedVolume = localVolume;
         pendingVolume = localVolume;
         lastAppliedVolume = localVolume;
     }
@@ -117,10 +125,26 @@ Item {
 
     onBrightnessLevelChanged: syncBrightnessFromLevel(brightnessLevel)
     onVolumeLevelChanged: syncVolumeFromLevel(volumeLevel)
-    onShowConditionChanged: if (showCondition) syncLevelsFromProps()
+    onShowConditionChanged: {
+        if (showCondition) {
+            syncLevelsFromProps();
+            displayedBrightness = 0;
+            displayedVolume = 0;
+            sliderIntroPending = true;
+            sliderIntroTimer.interval = sliderIntroDelay;
+            sliderIntroTimer.restart();
+        } else {
+            sliderIntroTimer.stop();
+            sliderIntroPending = false;
+            displayedBrightness = localBrightness;
+            displayedVolume = localVolume;
+        }
+    }
 
     Component.onCompleted: {
         syncLevelsFromProps();
+        displayedBrightness = localBrightness;
+        displayedVolume = localVolume;
         brightnessGetter.exec(["brightnessctl", "-m"]);
         volumeGetter.exec(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]);
     }
@@ -163,6 +187,18 @@ Item {
         interval: 55
         repeat: false
         onTriggered: controlCenter.flushVolume(false)
+    }
+
+    Timer {
+        id: sliderIntroTimer
+        interval: controlCenter.sliderIntroDelay
+        repeat: false
+
+        onTriggered: {
+            controlCenter.sliderIntroPending = false;
+            controlCenter.displayedBrightness = controlCenter.localBrightness;
+            controlCenter.displayedVolume = controlCenter.localVolume;
+        }
     }
 
     Rectangle {
@@ -403,17 +439,35 @@ Item {
                         height: parent.height
                         radius: parent.radius
                         color: "#f5f5f7"
+
+                        Behavior on width {
+                            enabled: !brightnessArea.pressed
+
+                            NumberAnimation {
+                                duration: 220
+                                easing.type: Easing.InOutCubic
+                            }
+                        }
                     }
 
                     Rectangle {
                         id: brightnessKnob
-                        x: Math.max(0, Math.min(parent.width - width, parent.width * localBrightness - width / 2))
+                        x: Math.max(0, Math.min(parent.width - width, parent.width * displayedBrightness - width / 2))
                         y: -1
                         width: controlCenter.sliderKnobSize
                         height: controlCenter.sliderKnobSize
                         radius: 12
                         color: "#ffffff"
                         visible: true
+
+                        Behavior on x {
+                            enabled: !brightnessArea.pressed
+
+                            NumberAnimation {
+                                duration: 130
+                                easing.type: Easing.OutCubic
+                            }
+                        }
                     }
 
                     Binding {
@@ -433,7 +487,15 @@ Item {
                             controlCenter.queueBrightness(controlCenter.clamp01(mouseX / width));
                         }
 
-                        onPressed: (mouse) => update(mouse.x)
+                        onPressed: (mouse) => {
+                            if (controlCenter.sliderIntroPending) {
+                                sliderIntroTimer.stop();
+                                controlCenter.sliderIntroPending = false;
+                                controlCenter.displayedBrightness = controlCenter.localBrightness;
+                                controlCenter.displayedVolume = controlCenter.localVolume;
+                            }
+                            update(mouse.x);
+                        }
                         onPositionChanged: (mouse) => {
                             if (pressed) update(mouse.x);
                         }
@@ -508,17 +570,35 @@ Item {
                         height: parent.height
                         radius: parent.radius
                         color: "#f5f5f7"
+
+                        Behavior on width {
+                            enabled: !volumeArea.pressed
+
+                            NumberAnimation {
+                                duration: 220
+                                easing.type: Easing.InOutCubic
+                            }
+                        }
                     }
 
                     Rectangle {
                         id: volumeKnob
-                        x: Math.max(0, Math.min(parent.width - width, parent.width * localVolume - width / 2))
+                        x: Math.max(0, Math.min(parent.width - width, parent.width * displayedVolume - width / 2))
                         y: -1
                         width: controlCenter.sliderKnobSize
                         height: controlCenter.sliderKnobSize
                         radius: 12
                         color: "#ffffff"
                         visible: true
+
+                        Behavior on x {
+                            enabled: !volumeArea.pressed
+
+                            NumberAnimation {
+                                duration: 130
+                                easing.type: Easing.OutCubic
+                            }
+                        }
                     }
 
                     Binding {
@@ -538,7 +618,15 @@ Item {
                             controlCenter.queueVolume(controlCenter.clamp01(mouseX / width));
                         }
 
-                        onPressed: (mouse) => update(mouse.x)
+                        onPressed: (mouse) => {
+                            if (controlCenter.sliderIntroPending) {
+                                sliderIntroTimer.stop();
+                                controlCenter.sliderIntroPending = false;
+                                controlCenter.displayedBrightness = controlCenter.localBrightness;
+                                controlCenter.displayedVolume = controlCenter.localVolume;
+                            }
+                            update(mouse.x);
+                        }
                         onPositionChanged: (mouse) => {
                             if (pressed) update(mouse.x);
                         }

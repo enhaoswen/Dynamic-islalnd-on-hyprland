@@ -42,9 +42,9 @@ Item {
 
     TextMetrics {
         id: contentMetrics
-        font.family: heroFontFamily
-        font.pixelSize: 18
-        font.weight: Font.Bold
+        font.family: textFontFamily
+        font.pixelSize: 16
+        font.weight: Font.DemiBold
         text: contentText
     }
 
@@ -76,10 +76,10 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: contentText
                 color: "white"
-                font.pixelSize: 18
-                font.family: heroFontFamily
-                font.weight: Font.Bold
-                font.letterSpacing: -0.2
+                font.pixelSize: 16
+                font.family: textFontFamily
+                font.weight: Font.DemiBold
+                font.letterSpacing: -0.15
                 width: parent.width
                 wrapMode: prefersWrappedContent ? Text.WordWrap : Text.NoWrap
                 maximumLineCount: prefersWrappedContent ? 2 : 1

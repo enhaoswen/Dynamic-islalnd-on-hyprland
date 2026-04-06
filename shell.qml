@@ -162,6 +162,7 @@ PanelWindow {
         property real   _pendingBlVal:  0.0
         property real swipeTransitionProgress: 0
         property bool workspaceFromLyricsMode: false
+        property bool splitFromLyricsMode: false
         property string restingState: "normal"
         property bool expandedByPlayerAutoOpen: false
         property real lyricsCapsuleWidth: 220
@@ -218,9 +219,10 @@ PanelWindow {
             if (!animate) osdProgressAnimationReset.restart();
         }
 
-        function abortWorkspaceFromLyricsMode() {
-            lyricsWorkspaceRestoreTimer.stop();
+        function abortLyricsTransientMode() {
+            lyricsTransientRestoreTimer.stop();
             workspaceFromLyricsMode = false;
+            splitFromLyricsMode = false;
         }
 
         function clearTransientCapsule() {
@@ -254,12 +256,17 @@ PanelWindow {
 
             const nextProgress = progress >= 0 ? progress : -1.0;
             const animateProgress = islandState === "split" && osdProgress >= 0 && nextProgress >= 0;
+            const animateFromLyrics = islandState === "lyrics"
+                || (islandState === "long_capsule" && workspaceFromLyricsMode)
+                || (islandState === "split" && splitFromLyricsMode);
 
-            abortWorkspaceFromLyricsMode();
+            abortLyricsTransientMode();
             splitIcon = icon;
             osdCustomText = customText;
             setOsdProgress(nextProgress, animateProgress);
+            splitFromLyricsMode = animateFromLyrics;
             islandState = "split";
+            swipeTransitionProgress = 0;
             restartAutoHideTimer();
         }
 
@@ -273,7 +280,7 @@ PanelWindow {
                 ? cleanedSummary
                 : (cleanedBody !== "" ? cleanedBody : "New notification");
 
-            abortWorkspaceFromLyricsMode();
+            abortLyricsTransientMode();
             clearTransientCapsule();
             notificationAppName = cleanedAppName !== "" ? cleanedAppName : "Notification";
             notificationSummary = resolvedSummary;
@@ -290,16 +297,18 @@ PanelWindow {
         function restoreRestingCapsule(forceImmediate) {
             if (forceImmediate === undefined) forceImmediate = false;
 
-            if (!forceImmediate && islandState === "long_capsule" && workspaceFromLyricsMode && restingState === "lyrics") {
-                clearTransientCapsule();
+            if (!forceImmediate
+                    && restingState === "lyrics"
+                    && ((islandState === "long_capsule" && workspaceFromLyricsMode)
+                        || (islandState === "split" && splitFromLyricsMode))) {
                 expandedByPlayerAutoOpen = false;
                 swipeTransitionProgress = 1;
                 stopAutoHideTimer();
-                lyricsWorkspaceRestoreTimer.restart();
+                lyricsTransientRestoreTimer.restart();
                 return;
             }
 
-            abortWorkspaceFromLyricsMode();
+            abortLyricsTransientMode();
             islandState = restingState;
             clearTransientCapsule();
             applyRestingVisuals();
@@ -322,7 +331,7 @@ PanelWindow {
         }
 
         function showExpandedPlayer(autoOpened) {
-            abortWorkspaceFromLyricsMode();
+            abortLyricsTransientMode();
             clearTransientCapsule();
             islandState = "expanded";
             expandedByPlayerAutoOpen = autoOpened;
@@ -331,7 +340,7 @@ PanelWindow {
         }
 
         function showControlCenter() {
-            abortWorkspaceFromLyricsMode();
+            abortLyricsTransientMode();
             clearTransientCapsule();
             islandState = "control_center";
             stopAutoHideTimer();
@@ -349,10 +358,12 @@ PanelWindow {
             currentWs = wsId;
             if (islandState === "control_center" || islandState === "notification") return;
             const animateFromLyrics = islandState === "lyrics"
-                || (islandState === "long_capsule" && workspaceFromLyricsMode);
+                || (islandState === "long_capsule" && workspaceFromLyricsMode)
+                || (islandState === "split" && splitFromLyricsMode);
             clearTransientCapsule();
-            lyricsWorkspaceRestoreTimer.stop();
+            lyricsTransientRestoreTimer.stop();
             workspaceFromLyricsMode = animateFromLyrics;
+            splitFromLyricsMode = false;
             islandState = "long_capsule";
             swipeTransitionProgress = 0;
             restartAutoHideTimer();
@@ -371,10 +382,11 @@ PanelWindow {
             onTriggered: islandContainer.osdProgressAnimationEnabled = true
         }
         Timer {
-            id: lyricsWorkspaceRestoreTimer
+            id: lyricsTransientRestoreTimer
             interval: islandContainer.swipeAnimationDuration
             onTriggered: {
                 islandContainer.workspaceFromLyricsMode = false;
+                islandContainer.splitFromLyricsMode = false;
                 islandContainer.islandState = islandContainer.restingState;
                 islandContainer.clearTransientCapsule();
                 islandContainer.applyRestingVisuals();
@@ -754,6 +766,7 @@ PanelWindow {
         // --- UI 渲染：灵动岛主干 ---
         Rectangle {
             id: mainCapsule
+            property int morphDuration: 400
             property real outlineWidth: root.overviewVisible ? 1 : 0
             property color outlineColor: root.overviewVisible ? root.overviewCapsuleBorderColor : "#00000000"
             readonly property real targetWidth: {
@@ -813,9 +826,9 @@ PanelWindow {
             height: targetHeight
             radius: targetRadius
 
-            Behavior on width  { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-            Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-            Behavior on radius { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+            Behavior on width  { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on height { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on radius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
             Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
             Behavior on outlineWidth { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }
@@ -946,9 +959,12 @@ PanelWindow {
                 maximumWidth: Math.max(220, root.width - 48)
                 transitionProgress: islandContainer.swipeTransitionProgress
                 showSecondaryText: !islandContainer.workspaceFromLyricsMode
+                    && !islandContainer.splitFromLyricsMode
                 showCondition: !root.overviewVisible && (
                     islandContainer.islandState === "normal"
                     || islandContainer.islandState === "lyrics"
+                    || (islandContainer.islandState === "split"
+                        && islandContainer.splitFromLyricsMode)
                     || (islandContainer.islandState === "long_capsule"
                         && (islandContainer.workspaceFromLyricsMode || islandContainer.swipeTransitionProgress > 0))
                 )
@@ -960,6 +976,8 @@ PanelWindow {
             SplitIconLayer {
                 iconText: islandContainer.splitIcon
                 iconFontFamily: root.iconFontFamily
+                transitionProgress: islandContainer.swipeTransitionProgress
+                slideFromLyrics: islandContainer.splitFromLyricsMode
                 showCondition: !root.overviewVisible && islandContainer.splitShowsIconOnly
             }
 
@@ -970,6 +988,8 @@ PanelWindow {
                 iconFontFamily: root.iconFontFamily
                 textFontFamily: root.textFontFamily
                 heroFontFamily: root.heroFontFamily
+                transitionProgress: islandContainer.swipeTransitionProgress
+                slideFromLyrics: islandContainer.splitFromLyricsMode
                 showCondition: !root.overviewVisible && islandContainer.splitUsesExtendedLayout
             }
 
@@ -1016,6 +1036,7 @@ PanelWindow {
                 iconFontFamily: root.iconFontFamily
                 textFontFamily: root.textFontFamily
                 heroFontFamily: root.heroFontFamily
+                sliderIntroDelay: mainCapsule.morphDuration
                 currentTime: timeObj.currentTime
                 currentDateLabel: timeObj.currentDateLabel
                 batteryCapacity: islandContainer.batteryCapacity

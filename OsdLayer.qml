@@ -7,14 +7,23 @@ Item {
     property string iconFontFamily: "JetBrainsMono Nerd Font"
     property string textFontFamily: "Inter"
     property string heroFontFamily: "Inter Display"
+    property bool slideFromLyrics: false
+    property real transitionProgress: 0
     readonly property bool showProgress: progress >= 0
     readonly property bool showText: progress < 0 && customText !== ""
     property bool showCondition: false
+    property real hiddenRightPadding: 16
+    readonly property real clampedProgress: Math.max(0, Math.min(1, transitionProgress))
+    readonly property real revealProgress: slideFromLyrics ? (1 - clampedProgress) : 1
+    readonly property real contentX: slideFromLyrics ? (width + hiddenRightPadding) * clampedProgress : 0
 
     anchors.fill: parent
-    opacity: showCondition ? 1 : 0
+    clip: true
+    opacity: showCondition ? revealProgress : 0
 
     Behavior on opacity {
+        enabled: !slideFromLyrics
+
         NumberAnimation {
             duration: showCondition ? 280 : 200
             easing.type: Easing.InOutQuad
@@ -22,7 +31,9 @@ Item {
     }
 
     Item {
-        anchors.fill: parent
+        x: contentX
+        width: parent.width
+        height: parent.height
         visible: showProgress
 
         Row {
@@ -103,27 +114,33 @@ Item {
         }
     }
 
-    Row {
-        anchors.centerIn: parent
-        spacing: 14
+    Item {
+        x: contentX
+        width: parent.width
+        height: parent.height
         visible: showText
 
-        Text {
-            text: iconText
-            color: "white"
-            font.pixelSize: 18
-            font.family: iconFontFamily
-            anchors.verticalCenter: parent.verticalCenter
-        }
+        Row {
+            anchors.centerIn: parent
+            spacing: 14
 
-        Text {
-            text: customText
-            color: "white"
-            font.pixelSize: 16
-            font.family: textFontFamily
-            font.weight: Font.DemiBold
-            font.letterSpacing: -0.15
-            anchors.verticalCenter: parent.verticalCenter
+            Text {
+                text: iconText
+                color: "white"
+                font.pixelSize: 18
+                font.family: iconFontFamily
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                text: customText
+                color: "white"
+                font.pixelSize: 16
+                font.family: textFontFamily
+                font.weight: Font.DemiBold
+                font.letterSpacing: -0.15
+                anchors.verticalCenter: parent.verticalCenter
+            }
         }
     }
 }
