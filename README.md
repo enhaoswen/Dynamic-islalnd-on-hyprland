@@ -4,13 +4,13 @@
 - Based on Quickshell and C++ /Qt 6.
 
 - Pursuting lightweight, smooth anim, and low-latency performance. 
-### usage:
+### usage
 
-Memory usage: < 100 Mb (PSS)
+Memory usage: ~ 200 Mb (PSS)
 
 CPU usage < 2%
 
-## Description:
+## Description
 
 
 Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
@@ -57,7 +57,7 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
   <img src="Preview/Preview_7.png" width="450" alt="Preview">
 </div>
 
-### Dependencies:
+### Dependencies
 
 #### Build-time Dependencies (Compiling the backend)
 - CMake (>= 3.16)
@@ -88,9 +88,9 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
 
 >Please rewrite the script path in UserConfig.qml
 
-### Compile & run:
+### Getting Start
 
-- Download 
+#### Download 
 ```bash
 git clone https://github.com/enhaoswen/Dynamic-Island-on-Hyprland.git && cd Dynamic-Island-on-Hyprland
 ```
@@ -98,7 +98,7 @@ git clone https://github.com/enhaoswen/Dynamic-Island-on-Hyprland.git && cd Dyna
 > make sure you change the program if is necessary, check important things at the end.
 
 
-- Build 
+#### Build 
 
 ```bash
 cd ~/Downloads/Dynamic-Island-on-Hyprland
@@ -119,20 +119,29 @@ cp ./build/qmldir ~/.config/quickshell/dynamic_island/IslandBackend/
 cp ./build/IslandBackend.qmltypes ~/.config/quickshell/dynamic_island/IslandBackend/
 ```
 
-- Clean 
+#### Clean 
 
 ```bash
 cd ../.. && rm -rf Dynamic-Island-on-Hyprland
 ```
 
-- To run in Hyprland:
+#### To run in Hyprland
 ```bash
 QML2_IMPORT_PATH=~/.config/quickshell/dynamic_island quickshell -p ~/.config/quickshell/dynamic_island/shell.qml
 ```
+### Control
 
-> `IslandBackend` is expected to live inside `~/.config/quickshell/dynamic_island/IslandBackend`.
-> You do not need to symlink it to `~/.config/quickshell/IslandBackend` as long as `QML2_IMPORT_PATH`
-> points to `~/.config/quickshell/dynamic_island`.
+| Action | Behavior |
+|--------|----------|
+| Left Click | Open Music Player |
+| Right Click | Open Control Center |
+| Swipe Left | Show Lyrics |
+| Super + Tab | Open Workspace Overview |
+| Charging / Discharging | Display battery status icon |
+| Brightness Change | Show brightness OSD |
+| Volume Change | Show volume OSD |
+| Caps Lock Toggle | Show status message |
+
 ## Acknowledgments
 
 - [@end-4](https://github.com/end-4) - For the workspace overview design.
