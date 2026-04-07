@@ -6,7 +6,7 @@
 - Pursuting lightweight, smooth anim, and low-latency performance. 
 ### usage
 
-Memory usage: ~ 200 Mb (PSS)
+Memory usage: < 200 Mb (PSS)
 
 CPU usage < 2%
 
