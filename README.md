@@ -129,6 +129,13 @@ cd ../.. && rm -rf Dynamic-Island-on-Hyprland
 ```bash
 QML2_IMPORT_PATH=~/.config/quickshell/dynamic_island quickshell -p ~/.config/quickshell/dynamic_island/shell.qml
 ```
+
+#### To activate workspace overview
+```conf
+bind = SUPER, TAB, exec, qs ipc -p ~/.config/quickshell/dynamic_island/shell.qml call overview toggle
+```
+> It is fine to change super tab to something else
+
 ### Control
 
 | Action | Behavior |
