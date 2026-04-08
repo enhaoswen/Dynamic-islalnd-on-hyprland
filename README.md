@@ -57,6 +57,21 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
   <img src="Preview/Preview_7.png" width="450" alt="Preview">
 </div>
 
+
+### Control
+
+| Action | Behavior |
+|--------|----------|
+| Left Click | Open Music Player |
+| Right Click | Open Control Center |
+| Swipe Left | Show Lyrics |
+| Super + Tab | Open Workspace Overview |
+| Charging / Discharging | Display battery status icon |
+| Brightness Change | Show brightness OSD |
+| Volume Change | Show volume OSD |
+| Caps Lock Toggle | Show status message |
+
+
 ### Dependencies
 
 #### Build-time Dependencies (Compiling the backend)
@@ -88,9 +103,9 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
 
 >Please rewrite the script path in UserConfig.qml
 
-### Getting Start
+## Getting Start
 
-#### Download 
+### Download 
 ```bash
 git clone https://github.com/enhaoswen/Dynamic-Island-on-Hyprland.git && cd Dynamic-Island-on-Hyprland
 ```
@@ -98,7 +113,7 @@ git clone https://github.com/enhaoswen/Dynamic-Island-on-Hyprland.git && cd Dyna
 > make sure you change the program if is necessary, check important things at the end.
 
 
-#### Build 
+### Build 
 
 ```bash
 cd ~/Downloads/Dynamic-Island-on-Hyprland
@@ -119,7 +134,7 @@ cp ./build/qmldir ~/.config/quickshell/dynamic_island/IslandBackend/
 cp ./build/IslandBackend.qmltypes ~/.config/quickshell/dynamic_island/IslandBackend/
 ```
 
-#### Clean 
+### Clean 
 
 ```bash
 cd ../.. && rm -rf Dynamic-Island-on-Hyprland
@@ -130,24 +145,11 @@ cd ../.. && rm -rf Dynamic-Island-on-Hyprland
 QML2_IMPORT_PATH=~/.config/quickshell/dynamic_island quickshell -p ~/.config/quickshell/dynamic_island/shell.qml
 ```
 
-#### To activate workspace overview
+### To activate workspace overview
 ```conf
 bind = SUPER, TAB, exec, qs ipc -p ~/.config/quickshell/dynamic_island/shell.qml call overview toggle
 ```
 > It is fine to change super tab to something else
-
-### Control
-
-| Action | Behavior |
-|--------|----------|
-| Left Click | Open Music Player |
-| Right Click | Open Control Center |
-| Swipe Left | Show Lyrics |
-| Super + Tab | Open Workspace Overview |
-| Charging / Discharging | Display battery status icon |
-| Brightness Change | Show brightness OSD |
-| Volume Change | Show volume OSD |
-| Caps Lock Toggle | Show status message |
 
 ## Acknowledgments
 
@@ -162,3 +164,5 @@ bind = SUPER, TAB, exec, qs ipc -p ~/.config/quickshell/dynamic_island/shell.qml
 - **The backend is hardcoded to read /sys/class/backlight/intel_backlight/. If you are using AMD or a different backlight driver, please update the path (SysBackend.cpp:353).**
 
 - **The status of caps lock is currently polled via hyprctl devices. Ensure hyprctl is in your $PATH.**
+
+- **If you encounter any issues, feel free to open an issue!**
