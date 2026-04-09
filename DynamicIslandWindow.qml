@@ -815,18 +815,22 @@ PanelWindow {
         }
 
         function showExpandedPlayer(autoOpened) {
+            cancelSideSwipeSettle();
             abortSideTransientMode();
             clearTransientCapsule();
             islandState = "expanded";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
             expandedByPlayerAutoOpen = autoOpened;
             if (autoOpened) restartAutoHideTimer();
             else stopAutoHideTimer();
         }
 
         function showControlCenter() {
+            cancelSideSwipeSettle();
             abortSideTransientMode();
             clearTransientCapsule();
             islandState = "control_center";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
             stopAutoHideTimer();
         }
 
@@ -1762,7 +1766,7 @@ PanelWindow {
                         activePlayer: islandContainer.activePlayer
                         iconFontFamily: root.iconFontFamily
                         textFontFamily: root.textFontFamily
-                        showCondition: true
+                        showCondition: islandContainer.expandedLayerVisible
                         onControlPressed: islandContainer.suppressCapsuleClick()
                     }
                 }
