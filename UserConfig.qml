@@ -6,7 +6,7 @@ QtObject {
     property string wallpaperPath: "/home/dan/.config/hypr/wallpaper.png"
     property real workspaceOverviewWindowRadius: 12
     property string iconFontFamily: "JetBrainsMono Nerd Font"
-    property string textFontFamily: "Inter"
+    property string textFontFamily: "Inter Display"
     property string heroFontFamily: "Inter Display"
     property string timeFontFamily: "Inter Display"
 
@@ -16,16 +16,8 @@ QtObject {
     property int overviewNextWorkspaceKey: Qt.Key_Right
 
     // This registers a Hyprland global shortcut action for the workspace overview.
-    // `overviewGlobalShortcutTriggerDescription` is only the display label.
-    // If you want Win+Tab:
-    // `bind = SUPER, TAB, global, quickshell:dynamic-island-overview`
-    // If you want Win+P:
-    // `bind = SUPER, P, global, quickshell:dynamic-island-overview`
-    property bool overviewGlobalShortcutEnabled: true
     property string overviewGlobalShortcutAppid: "quickshell"
     property string overviewGlobalShortcutName: "dynamic-island-overview"
-    property string overviewGlobalShortcutDescription: "Toggle Dynamic Island workspace overview"
-    property string overviewGlobalShortcutTriggerDescription: "Win+Tab"
 
     // Mouse buttons in this file use simple numbers:
     // 1 = left click, 2 = middle click, 3 = right click.
@@ -48,6 +40,9 @@ QtObject {
     property string dynamicIslandPrimaryAction: "toggleExpandedPlayer"
     property int dynamicIslandSecondaryButton: 3
     property string dynamicIslandSecondaryAction: "toggleControlCenter"
+    // Supported built-in left swipe items:
+    // "time", "date", "battery", "volume", "brightness", "workspace","cpu", "ram", "cava"
+    property var dynamicIslandLeftSwipeItems: (["battery","volume", "date","time","brightness","workspace","cpu","ram","cava"])
 
     property var scriptPaths: ({
         button_1: "/home/dan/.local/bin/quickshell_script/wifi-menu.sh",
@@ -79,6 +74,8 @@ QtObject {
         "brightnessHigh": "󰃠",
         "charging": "",
         "discharging": "",
+        "cpu": "󰍛",
+        "ram": "󰘚",
         "capsLockOn": "",
         "capsLockOff": "",
         "bluetooth": "󰋋"

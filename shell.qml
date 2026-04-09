@@ -68,19 +68,11 @@ Scope {
         }
     }
 
-    Loader {
-        active: userConfig.overviewGlobalShortcutEnabled
+    GlobalShortcut {
+        appid: userConfig.overviewGlobalShortcutAppid
+        name: userConfig.overviewGlobalShortcutName
 
-        sourceComponent: Component {
-            GlobalShortcut {
-                appid: userConfig.overviewGlobalShortcutAppid
-                name: userConfig.overviewGlobalShortcutName
-                description: userConfig.overviewGlobalShortcutDescription
-                triggerDescription: userConfig.overviewGlobalShortcutTriggerDescription
-
-                onPressed: shellRoot.toggleOverviewAll()
-            }
-        }
+        onPressed: shellRoot.toggleOverviewAll()
     }
 
     Variants {

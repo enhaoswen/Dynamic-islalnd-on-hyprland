@@ -128,9 +128,9 @@ Item {
     onShowConditionChanged: {
         if (showCondition) {
             syncLevelsFromProps();
-            displayedBrightness = 0;
-            displayedVolume = 0;
             sliderIntroPending = true;
+            displayedBrightness = localBrightness;
+            displayedVolume = localVolume;
             sliderIntroTimer.interval = sliderIntroDelay;
             sliderIntroTimer.restart();
         } else {
@@ -153,6 +153,24 @@ Item {
         NumberAnimation {
             duration: showCondition ? 240 : 100
             easing.type: Easing.InOutQuad
+        }
+    }
+
+    Behavior on displayedBrightness {
+        enabled: controlCenter.showCondition && !controlCenter.sliderIntroPending && !brightnessArea.pressed
+
+        NumberAnimation {
+            duration: 130
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Behavior on displayedVolume {
+        enabled: controlCenter.showCondition && !controlCenter.sliderIntroPending && !volumeArea.pressed
+
+        NumberAnimation {
+            duration: 130
+            easing.type: Easing.OutCubic
         }
     }
 
@@ -435,19 +453,12 @@ Item {
 
                     Rectangle {
                         id: brightnessFill
-                        width: 0
+                        width: controlCenter.displayedBrightness <= 0.001
+                            ? 0
+                            : Math.max(34, Math.min(brightnessTrack.width, brightnessTrack.width * controlCenter.displayedBrightness + 1))
                         height: parent.height
                         radius: parent.radius
                         color: "#f5f5f7"
-
-                        Behavior on width {
-                            enabled: !brightnessArea.pressed
-
-                            NumberAnimation {
-                                duration: 220
-                                easing.type: Easing.InOutCubic
-                            }
-                        }
                     }
 
                     Rectangle {
@@ -459,23 +470,6 @@ Item {
                         radius: 12
                         color: "#ffffff"
                         visible: true
-
-                        Behavior on x {
-                            enabled: !brightnessArea.pressed
-
-                            NumberAnimation {
-                                duration: 130
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
-
-                    Binding {
-                        target: brightnessFill
-                        property: "width"
-                        value: localBrightness <= 0.001
-                            ? 0
-                            : Math.max(34, Math.min(brightnessTrack.width, brightnessKnob.x + brightnessKnob.width / 2 + 1))
                     }
 
                     MouseArea {
@@ -566,19 +560,12 @@ Item {
 
                     Rectangle {
                         id: volumeFill
-                        width: 0
+                        width: controlCenter.displayedVolume <= 0.001
+                            ? 0
+                            : Math.max(34, Math.min(volumeTrack.width, volumeTrack.width * controlCenter.displayedVolume + 1))
                         height: parent.height
                         radius: parent.radius
                         color: "#f5f5f7"
-
-                        Behavior on width {
-                            enabled: !volumeArea.pressed
-
-                            NumberAnimation {
-                                duration: 220
-                                easing.type: Easing.InOutCubic
-                            }
-                        }
                     }
 
                     Rectangle {
@@ -590,23 +577,6 @@ Item {
                         radius: 12
                         color: "#ffffff"
                         visible: true
-
-                        Behavior on x {
-                            enabled: !volumeArea.pressed
-
-                            NumberAnimation {
-                                duration: 130
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                    }
-
-                    Binding {
-                        target: volumeFill
-                        property: "width"
-                        value: localVolume <= 0.001
-                            ? 0
-                            : Math.max(34, Math.min(volumeTrack.width, volumeKnob.x + volumeKnob.width / 2 + 1))
                     }
 
                     MouseArea {

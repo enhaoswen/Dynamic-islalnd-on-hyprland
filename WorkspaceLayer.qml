@@ -10,20 +10,28 @@ Item {
     property string textFontFamily: userConfig.textFontFamily
     property bool showCondition: false
     property int textPixelSize: 16
-    property bool slideFromLyrics: false
+    property string slideDirection: "none"
     property bool animateVisibility: true
     property real transitionProgress: 0
     property real horizontalPadding: 14
+    property real hiddenLeftPadding: 16
     property real hiddenRightPadding: 16
 
-    readonly property real clampedProgress: Math.max(0, Math.min(1, transitionProgress))
-    readonly property real revealProgress: slideFromLyrics ? (1 - clampedProgress) : 1
+    readonly property real clampedProgress: slideDirection === "right"
+        ? Math.max(0, Math.min(1, transitionProgress))
+        : (slideDirection === "left"
+            ? Math.max(0, Math.min(1, -transitionProgress))
+            : 0)
+    readonly property real revealProgress: slideDirection === "none" ? 1 : (1 - clampedProgress)
     readonly property real textWidth: Math.max(0, width - horizontalPadding * 2)
     readonly property real centeredX: horizontalPadding
+    readonly property real hiddenLeftX: -textWidth - hiddenLeftPadding
     readonly property real hiddenRightX: width + hiddenRightPadding
-    readonly property real labelX: slideFromLyrics
+    readonly property real labelX: slideDirection === "right"
         ? centeredX + (hiddenRightX - centeredX) * clampedProgress
-        : centeredX
+        : (slideDirection === "left"
+            ? centeredX + (hiddenLeftX - centeredX) * clampedProgress
+            : centeredX)
 
     anchors.fill: parent
     clip: true

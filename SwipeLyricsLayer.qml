@@ -27,11 +27,11 @@ Item {
     readonly property real clampedProgress: Math.max(0, Math.min(1, transitionProgress))
     readonly property bool lyricMostlyVisible: clampedProgress > 0.92
     readonly property real textWidth: Math.max(0, width - horizontalPadding * 2)
-    readonly property real lyricHiddenX: -textWidth - hiddenLeftPadding
     readonly property real centeredX: horizontalPadding
-    readonly property real timeHiddenX: width + hiddenRightPadding
-    readonly property real lyricX: lyricHiddenX + (centeredX - lyricHiddenX) * clampedProgress
-    readonly property real timeX: centeredX + (timeHiddenX - centeredX) * clampedProgress
+    readonly property real panelTravel: Math.max(width, lyricMetrics.advanceWidth + horizontalPadding * 2)
+        + Math.max(hiddenLeftPadding, hiddenRightPadding)
+    readonly property real lyricX: centeredX - (1 - clampedProgress) * panelTravel
+    readonly property real timeX: centeredX + clampedProgress * panelTravel
     readonly property real preferredWidth: Math.max(
         minimumWidth,
         Math.min(Math.max(minimumWidth, maximumWidth), lyricMetrics.advanceWidth + horizontalPadding * 2 + 28)

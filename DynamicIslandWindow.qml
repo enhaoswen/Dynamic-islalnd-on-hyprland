@@ -199,7 +199,7 @@ PanelWindow {
 
     Timer {
         id: overviewRevealTimer
-        interval: 400
+        interval: 0
         repeat: false
         onTriggered: {
             if (root.overviewPhase === "opening") root.overviewPhase = "open";
@@ -261,10 +261,16 @@ PanelWindow {
         property int batteryCapacity: SysBackend.batteryCapacity
         property bool isCharging: SysBackend.batteryStatus === "Charging" || SysBackend.batteryStatus === "Full"
         property real currentVolume: -1
+        property bool isMuted: false
         property real currentBrightness: -1
+        property real currentCpuUsage: -1
+        property real currentRamUsage: -1
         property string notificationAppName: ""
         property string notificationSummary: ""
         property string notificationBody: ""
+        property real _lastCpuTotal: -1
+        property real _lastCpuIdle: -1
+        property var cavaLevels: [0, 0, 0, 0, 0, 0, 0, 0]
         property string _lastChargeStatus: SysBackend.batteryStatus
         property string _pendingVolType: ""
         property real   _pendingVolVal:  0.0
@@ -273,14 +279,17 @@ PanelWindow {
         property bool btJustConnected: false
         property real   _pendingBlVal:  0.0
         property real swipeTransitionProgress: 0
-        property bool workspaceFromLyricsMode: false
-        property bool splitFromLyricsMode: false
+        property string workspaceOriginSide: "none"
+        property string splitOriginSide: "none"
         property string restingState: "normal"
         property bool expandedByPlayerAutoOpen: false
+        property real customCapsuleWidth: 220
         property real lyricsCapsuleWidth: 220
+        property bool sideSwipeSettling: false
         readonly property int defaultAutoHideInterval: 1250
         readonly property int notificationAutoHideInterval: 4200
         readonly property int swipeAnimationDuration: 220
+        readonly property real sideSwipePreviewStrength: 0.7
         readonly property bool blocksTransientSplit: islandState === "expanded"
             || islandState === "control_center"
             || islandState === "notification"
@@ -289,13 +298,56 @@ PanelWindow {
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
         readonly property bool splitUsesExtendedLayout: splitShowsProgress || splitShowsText
         readonly property real splitCapsuleWidth: splitShowsProgress ? 248 : (splitShowsText ? 220 : 140)
-        readonly property bool canShowLyricsSwipe: islandState === "normal"
+        readonly property bool canShowSideSwipe: islandState === "normal"
+            || islandState === "custom"
             || islandState === "lyrics"
-            || (islandState === "long_capsule" && !workspaceFromLyricsMode)
+            || (islandState === "long_capsule" && workspaceOriginSide === "none")
+        readonly property real rightSwipeProgress: Math.max(0, swipeTransitionProgress)
+        readonly property var configuredLeftSwipeIds: buildNormalizedSwipeItemIds(userConfig.dynamicIslandLeftSwipeItems)
+        readonly property bool usesSystemStatsModule: configuredLeftSwipeIds.indexOf("cpu") !== -1
+            || configuredLeftSwipeIds.indexOf("ram") !== -1
+        readonly property bool usesCavaModule: configuredLeftSwipeIds.indexOf("cava") !== -1
+        readonly property var customLeftItems: buildCustomSwipeItems(userConfig.dynamicIslandLeftSwipeItems)
+        readonly property bool hasCustomLeftItems: customLeftItems.length > 0
+        readonly property bool customSwipeVisible: !root.overviewVisible
+            && hasCustomLeftItems
+            && (
+                islandState === "custom"
+                || (islandState === "normal" && swipeTransitionProgress < 0)
+                || (islandState === "split" && splitOriginSide === "left")
+                || (islandState === "long_capsule"
+                    && (workspaceOriginSide === "left" || swipeTransitionProgress < 0))
+            )
+        readonly property bool lyricsSwipeVisible: !root.overviewVisible && (
+            islandState === "lyrics"
+            || (islandState === "normal" && swipeTransitionProgress >= 0)
+            || (islandState === "split" && splitOriginSide === "right")
+            || (islandState === "long_capsule"
+                && (workspaceOriginSide === "right" || swipeTransitionProgress > 0))
+        )
+        readonly property bool expandedLayerVisible: !root.overviewVisible && islandState === "expanded"
+        readonly property bool notificationLayerVisible: !root.overviewVisible && islandState === "notification"
+        readonly property bool controlCenterLayerVisible: !root.overviewVisible && islandState === "control_center"
         readonly property string lyricsDisplayText: lyricsBridge.displayText
         readonly property var overviewView: overviewLoader.item && overviewLoader.item.overviewView
             ? overviewLoader.item.overviewView
             : null
+
+        onCustomLeftItemsChanged: {
+            if (restingState === "custom" && !hasCustomLeftItems) {
+                restingState = "normal";
+
+                if (islandState === "custom"
+                        || (islandState === "split" && splitOriginSide === "left")
+                        || (islandState === "long_capsule" && workspaceOriginSide === "left")) {
+                    restoreRestingCapsule(true);
+                } else {
+                    applyRestingVisuals();
+                }
+            } else if (restingState === "custom") {
+                syncCustomCapsuleWidth();
+            }
+        }
 
         Behavior on osdProgress {
             enabled: islandContainer.osdProgressAnimationEnabled
@@ -304,7 +356,7 @@ PanelWindow {
         }
         Behavior on swipeTransitionProgress {
             NumberAnimation {
-                duration: capsuleMouseArea.pressed ? 0 : islandContainer.swipeAnimationDuration
+                duration: capsuleMouseArea.sideSwipeInteractive ? 0 : islandContainer.swipeAnimationDuration
                 easing.type: Easing.OutCubic
             }
         }
@@ -386,6 +438,227 @@ PanelWindow {
             }
         }
 
+        function normalizeSwipeItemId(rawId) {
+            return String(rawId === undefined || rawId === null ? "" : rawId).trim().toLowerCase();
+        }
+
+        function formatPercentText(value) {
+            return Math.round(Math.max(0, value) * 100) + "%";
+        }
+
+        function clamp01(value) {
+            return Math.max(0, Math.min(1, value));
+        }
+
+        function applyBrightnessOutput(text) {
+            const match = String(text === undefined || text === null ? "" : text).match(/,(\d+)%/);
+            if (!match) return;
+            currentBrightness = clamp01(parseInt(match[1], 10) / 100);
+        }
+
+        function applyVolumeOutput(text) {
+            const source = String(text === undefined || text === null ? "" : text);
+            const match = source.match(/([0-9]*\.?[0-9]+)/);
+            if (match) currentVolume = clamp01(parseFloat(match[1]));
+            isMuted = /\bMUTED\b/i.test(source);
+        }
+
+        function refreshMissingLeftSwipeValues() {
+            if (currentBrightness < 0 && !brightnessSnapshot.running)
+                brightnessSnapshot.exec(["brightnessctl", "-m"]);
+            if (currentVolume < 0 && !volumeSnapshot.running)
+                volumeSnapshot.exec(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]);
+            if (usesSystemStatsModule && !systemStatsSnapshot.running)
+                systemStatsSnapshot.exec(systemStatsSnapshot.command);
+        }
+
+        function buildNormalizedSwipeItemIds(rawItems) {
+            const source = Array.isArray(rawItems) ? rawItems : [];
+            const resolved = [];
+            const seen = {};
+
+            for (let index = 0; index < source.length; index++) {
+                const itemId = normalizeSwipeItemId(source[index]);
+                if (itemId === "" || seen[itemId]) continue;
+                seen[itemId] = true;
+                resolved.push(itemId);
+            }
+
+            return resolved;
+        }
+
+        function applySystemStatsOutput(text) {
+            const lines = String(text === undefined || text === null ? "" : text).trim().split(/\r?\n/);
+
+            for (let index = 0; index < lines.length; index++) {
+                const line = lines[index].trim();
+                if (line === "") continue;
+
+                const parts = line.split(/\s+/);
+                if (parts[0] === "cpu" && parts.length >= 6) {
+                    let total = 0;
+                    for (let valueIndex = 1; valueIndex < parts.length; valueIndex++)
+                        total += Number(parts[valueIndex]) || 0;
+
+                    const idle = (Number(parts[4]) || 0) + (Number(parts[5]) || 0);
+                    if (_lastCpuTotal >= 0 && _lastCpuIdle >= 0 && total > _lastCpuTotal) {
+                        const totalDiff = total - _lastCpuTotal;
+                        const idleDiff = idle - _lastCpuIdle;
+                        currentCpuUsage = totalDiff > 0 ? clamp01((totalDiff - idleDiff) / totalDiff) : 0;
+                    } else {
+                        currentCpuUsage = currentCpuUsage >= 0 ? currentCpuUsage : 0;
+                    }
+
+                    _lastCpuTotal = total;
+                    _lastCpuIdle = idle;
+                    continue;
+                }
+
+                if (parts[0] === "mem" && parts.length >= 3) {
+                    const totalMem = Number(parts[1]) || 0;
+                    const availableMem = Number(parts[2]) || 0;
+                    if (totalMem > 0) currentRamUsage = clamp01((totalMem - availableMem) / totalMem);
+                }
+            }
+        }
+
+        function applyCavaOutput(line) {
+            const values = String(line === undefined || line === null ? "" : line)
+                .split(";")
+                .filter(value => value !== "");
+
+            if (values.length === 0) return;
+
+            const nextLevels = [];
+            for (let index = 0; index < values.length; index++) {
+                const parsed = Number(values[index]);
+                nextLevels.push(clamp01((isNaN(parsed) ? 0 : parsed) / 7.0));
+            }
+
+            cavaLevels = nextLevels;
+        }
+
+        function buildCustomSwipeItem(itemId) {
+            switch (itemId) {
+            case "time":
+                return { id: itemId, icon: "", text: timeObj.currentTime };
+            case "date":
+                return { id: itemId, icon: "", text: timeObj.currentDateLabel };
+            case "battery":
+                if (batteryCapacity < 0) return null;
+                return {
+                    id: itemId,
+                    icon: isCharging ? userConfig.statusIcons["charging"] : "",
+                    text: Math.max(0, batteryCapacity) + "%"
+                };
+            case "volume":
+                if (currentVolume < 0) return null;
+                return {
+                    id: itemId,
+                    icon: isMuted ? userConfig.statusIcons["mute"] : userConfig.statusIcons["volume"],
+                    text: formatPercentText(currentVolume)
+                };
+            case "brightness":
+                if (currentBrightness < 0) return null;
+                return {
+                    id: itemId,
+                    icon: brightnessStatusIcon(currentBrightness),
+                    text: formatPercentText(currentBrightness)
+                };
+            case "workspace":
+                return { id: itemId, icon: "", text: "WS " + currentWs };
+            case "cpu":
+                if (currentCpuUsage < 0) return null;
+                return {
+                    id: itemId,
+                    icon: userConfig.statusIcons["cpu"],
+                    text: formatPercentText(currentCpuUsage)
+                };
+            case "ram":
+                if (currentRamUsage < 0) return null;
+                return {
+                    id: itemId,
+                    icon: userConfig.statusIcons["ram"],
+                    text: formatPercentText(currentRamUsage)
+                };
+            case "cava":
+                return { id: itemId, kind: "cava" };
+            default:
+                return null;
+            }
+        }
+
+        function buildCustomSwipeItems(rawItems) {
+            const source = Array.isArray(rawItems) ? rawItems : [];
+            const resolved = [];
+            const seen = {};
+
+            for (let index = 0; index < source.length; index++) {
+                const itemId = normalizeSwipeItemId(source[index]);
+                if (itemId === "" || seen[itemId]) continue;
+                seen[itemId] = true;
+
+                const nextItem = buildCustomSwipeItem(itemId);
+                if (nextItem) resolved.push(nextItem);
+            }
+
+            return resolved;
+        }
+
+        function normalizeRestingState(nextState) {
+            if (nextState === "lyrics") return "lyrics";
+            if (nextState === "custom" && hasCustomLeftItems) return "custom";
+            return "normal";
+        }
+
+        function restingStateProgress(nextState) {
+            switch (normalizeRestingState(nextState)) {
+            case "custom":
+                return -1;
+            case "lyrics":
+                return 1;
+            default:
+                return 0;
+            }
+        }
+
+        function restingStateSide(nextState) {
+            switch (normalizeRestingState(nextState)) {
+            case "custom":
+                return "left";
+            case "lyrics":
+                return "right";
+            default:
+                return "none";
+            }
+        }
+
+        function swipeRestProgressForState() {
+            switch (islandState) {
+            case "custom":
+                return -1;
+            case "lyrics":
+                return 1;
+            default:
+                return 0;
+            }
+        }
+
+        function currentTransientOriginSide() {
+            switch (islandState) {
+            case "custom":
+                return "left";
+            case "lyrics":
+                return "right";
+            case "long_capsule":
+                return workspaceOriginSide;
+            case "split":
+                return splitOriginSide;
+            default:
+                return "none";
+            }
+        }
+
         function setOsdProgress(nextProgress, animate) {
             osdProgressAnimationReset.stop();
             osdProgressAnimationEnabled = animate;
@@ -393,10 +666,10 @@ PanelWindow {
             if (!animate) osdProgressAnimationReset.restart();
         }
 
-        function abortLyricsTransientMode() {
-            lyricsTransientRestoreTimer.stop();
-            workspaceFromLyricsMode = false;
-            splitFromLyricsMode = false;
+        function abortSideTransientMode() {
+            sideTransientRestoreTimer.stop();
+            workspaceOriginSide = "none";
+            splitOriginSide = "none";
         }
 
         function clearTransientCapsule() {
@@ -407,9 +680,44 @@ PanelWindow {
             notificationBody = "";
         }
 
+        function prepareRestingCapsuleGeometry() {
+            if (restingState === "custom")
+                syncCustomCapsuleWidth();
+            if (restingState === "lyrics")
+                syncLyricsCapsuleWidth();
+        }
+
         function applyRestingVisuals() {
-            swipeTransitionProgress = restingState === "lyrics" ? 1 : 0;
-            if (restingState === "lyrics") syncLyricsCapsuleWidth();
+            prepareRestingCapsuleGeometry();
+            swipeTransitionProgress = restingStateProgress(restingState);
+        }
+
+        function sideSwipeRestProgressForProgress(progressValue) {
+            if (progressValue <= -0.5) return -1;
+            if (progressValue >= 0.5) return 1;
+            return 0;
+        }
+
+        function sideSwipeRestWidthForProgress(progressValue) {
+            if (progressValue <= -0.5) return customCapsuleWidth;
+            if (progressValue >= 0.5) return lyricsCapsuleWidth;
+            return 140;
+        }
+
+        function beginSideSwipeSettle(targetWidth) {
+            sideSwipeSettling = true;
+            mainCapsule.displayedWidth = targetWidth;
+            sideSwipeSettleReset.restart();
+        }
+
+        function cancelSideSwipeSettle() {
+            sideSwipeSettleReset.stop();
+            sideSwipeSettling = false;
+        }
+
+        function finishSideSwipeSettle() {
+            sideSwipeSettling = false;
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
         }
 
         function restartAutoHideTimer(duration) {
@@ -430,15 +738,13 @@ PanelWindow {
 
             const nextProgress = progress >= 0 ? progress : -1.0;
             const animateProgress = islandState === "split" && osdProgress >= 0 && nextProgress >= 0;
-            const animateFromLyrics = islandState === "lyrics"
-                || (islandState === "long_capsule" && workspaceFromLyricsMode)
-                || (islandState === "split" && splitFromLyricsMode);
+            const animateFromSide = currentTransientOriginSide();
 
-            abortLyricsTransientMode();
+            abortSideTransientMode();
             splitIcon = icon;
             osdCustomText = customText;
             setOsdProgress(nextProgress, animateProgress);
-            splitFromLyricsMode = animateFromLyrics;
+            splitOriginSide = animateFromSide;
             islandState = "split";
             swipeTransitionProgress = 0;
             restartAutoHideTimer();
@@ -454,7 +760,7 @@ PanelWindow {
                 ? cleanedSummary
                 : (cleanedBody !== "" ? cleanedBody : "New notification");
 
-            abortLyricsTransientMode();
+            abortSideTransientMode();
             clearTransientCapsule();
             notificationAppName = cleanedAppName !== "" ? cleanedAppName : "Notification";
             notificationSummary = resolvedSummary;
@@ -470,20 +776,24 @@ PanelWindow {
 
         function restoreRestingCapsule(forceImmediate) {
             if (forceImmediate === undefined) forceImmediate = false;
+            const normalizedRestingState = normalizeRestingState(restingState);
+            const targetSide = restingStateSide(normalizedRestingState);
+            const shouldAnimateToSide = targetSide !== "none"
+                && ((islandState === "long_capsule" && workspaceOriginSide === targetSide)
+                    || (islandState === "split" && splitOriginSide === targetSide));
 
-            if (!forceImmediate
-                    && restingState === "lyrics"
-                    && ((islandState === "long_capsule" && workspaceFromLyricsMode)
-                        || (islandState === "split" && splitFromLyricsMode))) {
+            if (!forceImmediate && shouldAnimateToSide) {
                 expandedByPlayerAutoOpen = false;
-                swipeTransitionProgress = 1;
+                prepareRestingCapsuleGeometry();
+                swipeTransitionProgress = restingStateProgress(normalizedRestingState);
                 stopAutoHideTimer();
-                lyricsTransientRestoreTimer.restart();
+                sideTransientRestoreTimer.restart();
                 return;
             }
 
-            abortLyricsTransientMode();
-            islandState = restingState;
+            abortSideTransientMode();
+            prepareRestingCapsuleGeometry();
+            islandState = normalizedRestingState;
             clearTransientCapsule();
             applyRestingVisuals();
             expandedByPlayerAutoOpen = false;
@@ -491,7 +801,7 @@ PanelWindow {
         }
 
         function setRestingState(nextState) {
-            restingState = nextState === "lyrics" ? "lyrics" : "normal";
+            restingState = normalizeRestingState(nextState);
         }
 
         function smartRestoreState() {
@@ -505,7 +815,7 @@ PanelWindow {
         }
 
         function showExpandedPlayer(autoOpened) {
-            abortLyricsTransientMode();
+            abortSideTransientMode();
             clearTransientCapsule();
             islandState = "expanded";
             expandedByPlayerAutoOpen = autoOpened;
@@ -514,10 +824,20 @@ PanelWindow {
         }
 
         function showControlCenter() {
-            abortLyricsTransientMode();
+            abortSideTransientMode();
             clearTransientCapsule();
             islandState = "control_center";
             stopAutoHideTimer();
+        }
+
+        function showCustomCapsule() {
+            if (!hasCustomLeftItems) {
+                showTimeCapsule();
+                return;
+            }
+
+            refreshMissingLeftSwipeValues();
+            showRestingCapsule("custom");
         }
 
         function showLyricsCapsule() {
@@ -531,13 +851,11 @@ PanelWindow {
         function showWorkspaceCapsule(wsId) {
             currentWs = wsId;
             if (islandState === "control_center" || islandState === "notification") return;
-            const animateFromLyrics = islandState === "lyrics"
-                || (islandState === "long_capsule" && workspaceFromLyricsMode)
-                || (islandState === "split" && splitFromLyricsMode);
+            const animateFromSide = currentTransientOriginSide();
             clearTransientCapsule();
-            lyricsTransientRestoreTimer.stop();
-            workspaceFromLyricsMode = animateFromLyrics;
-            splitFromLyricsMode = false;
+            sideTransientRestoreTimer.stop();
+            workspaceOriginSide = animateFromSide;
+            splitOriginSide = "none";
             islandState = "long_capsule";
             swipeTransitionProgress = 0;
             restartAutoHideTimer();
@@ -556,21 +874,109 @@ PanelWindow {
             onTriggered: islandContainer.osdProgressAnimationEnabled = true
         }
         Timer {
-            id: lyricsTransientRestoreTimer
+            id: sideTransientRestoreTimer
             interval: islandContainer.swipeAnimationDuration
             onTriggered: {
-                islandContainer.workspaceFromLyricsMode = false;
-                islandContainer.splitFromLyricsMode = false;
-                islandContainer.islandState = islandContainer.restingState;
+                islandContainer.workspaceOriginSide = "none";
+                islandContainer.splitOriginSide = "none";
+                islandContainer.prepareRestingCapsuleGeometry();
+                islandContainer.islandState = islandContainer.normalizeRestingState(islandContainer.restingState);
                 islandContainer.clearTransientCapsule();
                 islandContainer.applyRestingVisuals();
                 islandContainer.expandedByPlayerAutoOpen = false;
             }
         }
+        Timer {
+            id: sideSwipeSettleReset
+            interval: mainCapsule.morphDuration
+            onTriggered: islandContainer.finishSideSwipeSettle()
+        }
+
+        function syncCustomCapsuleWidth() {
+            const view = customSwipeLoader.item;
+            if (!view) return;
+            customCapsuleWidth = Math.max(220, Math.min(root.width - 48, view.preferredWidth));
+        }
 
         function syncLyricsCapsuleWidth() {
-            lyricsCapsuleWidth = Math.max(220, Math.min(root.width - 48, swipeLyricsLayer.preferredWidth));
+            const view = lyricsSwipeLoader.item;
+            if (!view) return;
+            lyricsCapsuleWidth = Math.max(220, Math.min(root.width - 48, view.preferredWidth));
         }
+
+        Process {
+            id: brightnessSnapshot
+            stdout: StdioCollector {
+                waitForEnd: true
+                onStreamFinished: islandContainer.applyBrightnessOutput(text)
+            }
+        }
+
+        Process {
+            id: volumeSnapshot
+            stdout: StdioCollector {
+                waitForEnd: true
+                onStreamFinished: islandContainer.applyVolumeOutput(text)
+            }
+        }
+
+        Process {
+            id: systemStatsSnapshot
+            command: [
+                "sh",
+                "-lc",
+                "awk 'NR == 1 { print \"cpu\", $2, $3, $4, $5, $6, $7, $8, $9, $10 } $1 == \"MemTotal:\" { total = $2 } $1 == \"MemAvailable:\" { available = $2 } END { print \"mem\", total, available }' /proc/stat /proc/meminfo"
+            ]
+            stdout: StdioCollector {
+                waitForEnd: true
+                onStreamFinished: islandContainer.applySystemStatsOutput(text)
+            }
+        }
+
+        Timer {
+            id: systemStatsPollTimer
+            interval: 3000
+            repeat: true
+            running: islandContainer.usesSystemStatsModule && customSwipeLoader.active
+            triggeredOnStart: true
+            onTriggered: {
+                if (!systemStatsSnapshot.running)
+                    systemStatsSnapshot.exec(systemStatsSnapshot.command);
+            }
+        }
+
+        Timer {
+            id: cavaRestartTimer
+            interval: 1200
+            repeat: false
+            onTriggered: {
+                if (islandContainer.usesCavaModule && customSwipeLoader.active)
+                    cavaMonitor.running = true;
+            }
+        }
+
+        Process {
+            id: cavaMonitor
+            running: islandContainer.usesCavaModule && customSwipeLoader.active
+            command: [
+                "sh",
+                "-lc",
+                "exec cava -p /dev/stdin <<'EOF'\n[general]\nframerate = 60\nbars = 8\nautosens = 1\n[output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 7\nchannels = mono\nEOF"
+            ]
+            stdout: SplitParser {
+                splitMarker: "\n"
+
+                onRead: function(data) {
+                    islandContainer.applyCavaOutput(data);
+                }
+            }
+            onExited: {
+                if (islandContainer.usesCavaModule && customSwipeLoader.active)
+                    cavaRestartTimer.restart();
+            }
+        }
+
+        Component.onCompleted: refreshMissingLeftSwipeValues()
 
         Timer { id: btBlockVolTimer; interval: 2000; onTriggered: islandContainer.btJustConnected = false }
         Timer {
@@ -609,6 +1015,7 @@ PanelWindow {
                 islandContainer._pendingVolType = isMuted ? "MUTE" : "VOL";
                 islandContainer._pendingVolVal = volPercentage / 100.0;
                 islandContainer.currentVolume = volPercentage / 100.0;
+                islandContainer.isMuted = isMuted;
                 volDebounce.restart();
             }
 
@@ -955,14 +1362,30 @@ PanelWindow {
             property int morphDuration: 400
             property real outlineWidth: root.overviewVisible ? 1 : 0
             property color outlineColor: root.overviewVisible ? root.overviewCapsuleBorderColor : "#00000000"
-            readonly property real targetWidth: {
+            property real displayedWidth: baseTargetWidth
+            readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
+                if (sideTransientRestoreTimer.running) {
+                    if (islandContainer.restingState === "lyrics"
+                            && ((islandContainer.islandState === "split" && islandContainer.splitOriginSide === "right")
+                                || (islandContainer.islandState === "long_capsule" && islandContainer.workspaceOriginSide === "right"))) {
+                        return islandContainer.lyricsCapsuleWidth;
+                    }
+
+                    if (islandContainer.restingState === "custom"
+                            && ((islandContainer.islandState === "split" && islandContainer.splitOriginSide === "left")
+                                || (islandContainer.islandState === "long_capsule" && islandContainer.workspaceOriginSide === "left"))) {
+                        return islandContainer.customCapsuleWidth;
+                    }
+                }
 
                 switch (islandContainer.islandState) {
                 case "split":
                     return islandContainer.splitCapsuleWidth;
                 case "long_capsule":
                     return 220;
+                case "custom":
+                    return islandContainer.customCapsuleWidth;
                 case "lyrics":
                     return islandContainer.lyricsCapsuleWidth;
                 case "control_center":
@@ -970,7 +1393,11 @@ PanelWindow {
                 case "expanded":
                     return 400;
                 case "notification":
-                    return Math.max(notificationLayer.minimumWidth, Math.min(notificationLayer.maximumWidth, notificationLayer.preferredWidth));
+                    if (!notificationLoader.item) return 272;
+                    return Math.max(
+                        notificationLoader.item.minimumWidth,
+                        Math.min(notificationLoader.item.maximumWidth, notificationLoader.item.preferredWidth)
+                    );
                 default:
                     return 140;
                 }
@@ -984,7 +1411,9 @@ PanelWindow {
                 case "expanded":
                     return 165;
                 case "notification":
-                    return Math.max(56, Math.min(68, notificationLayer.preferredHeight));
+                    return notificationLoader.item
+                        ? Math.max(56, Math.min(68, notificationLoader.item.preferredHeight))
+                        : 56;
                 default:
                     return 38;
                 }
@@ -1003,16 +1432,58 @@ PanelWindow {
                     return 19;
                 }
             }
+            function sideSwipeEndpointProgress(startProgress, currentProgress) {
+                if (startProgress <= -0.5 || startProgress >= 0.5) return 0;
+                if (currentProgress < -0.001 && islandContainer.hasCustomLeftItems) return -1;
+                if (currentProgress > 0.001) return 1;
+                return 0;
+            }
+            function sideSwipeEndpointWidth(startProgress, currentProgress, sourceWidth) {
+                if (startProgress <= -0.5 || startProgress >= 0.5) return 140;
+                if (currentProgress < -0.001 && islandContainer.hasCustomLeftItems)
+                    return islandContainer.customCapsuleWidth;
+                if (currentProgress > 0.001)
+                    return islandContainer.lyricsCapsuleWidth;
+                return sourceWidth;
+            }
+            readonly property real sideSwipePreviewWidth: {
+                const sourceWidth = capsuleMouseArea.swipeStartWidth > 0
+                    ? capsuleMouseArea.swipeStartWidth
+                    : mainCapsule.baseTargetWidth;
+                const startProgress = capsuleMouseArea.swipeStartProgress;
+                const currentProgress = islandContainer.swipeTransitionProgress;
+                const endpointProgress = mainCapsule.sideSwipeEndpointProgress(startProgress, currentProgress);
+                const span = Math.abs(endpointProgress - startProgress);
 
+                if (span < 0.001) return sourceWidth;
+
+                const transitionAmount = islandContainer.clamp01(Math.abs(currentProgress - startProgress) / span);
+                const endpointWidth = mainCapsule.sideSwipeEndpointWidth(startProgress, currentProgress, sourceWidth);
+
+                return sourceWidth
+                    + (endpointWidth - sourceWidth)
+                    * islandContainer.sideSwipePreviewStrength
+                    * transitionAmount;
+            }
             color: root.overviewVisible ? root.overviewCapsuleColor : "black"
             y: 4
             anchors.horizontalCenter: parent.horizontalCenter
             clip: true
-            width: targetWidth
+            width: displayedWidth
             height: targetHeight
             radius: targetRadius
 
-            Behavior on width  { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            onBaseTargetWidthChanged: {
+                if (!capsuleMouseArea.sideSwipeInteractive && !islandContainer.sideSwipeSettling)
+                    displayedWidth = baseTargetWidth;
+            }
+
+            Behavior on displayedWidth  {
+                NumberAnimation {
+                    duration: capsuleMouseArea.sideSwipeInteractive ? 0 : mainCapsule.morphDuration
+                    easing.type: Easing.OutQuint
+                }
+            }
             Behavior on height { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
             Behavior on radius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
             Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
@@ -1048,9 +1519,10 @@ PanelWindow {
                 property real swipeStartX: 0
                 property real swipeStartY: 0
                 property real swipeStartProgress: 0
+                property real swipeStartWidth: 0
                 property bool swipeArmed: false
-                property bool swipePassedThreshold: false
                 property bool swipeMoved: false
+                property bool sideSwipeInteractive: false
                 property bool suppressNextClick: false
 
                 Timer {
@@ -1061,28 +1533,32 @@ PanelWindow {
                 }
 
                 onPressed: (mouse) => {
-                    swipeStartX = mouse.x;
-                    swipeStartY = mouse.y;
+                    const mappedPoint = capsuleMouseArea.mapToItem(islandContainer, mouse.x, mouse.y);
+                    swipeStartX = mappedPoint.x;
+                    swipeStartY = mappedPoint.y;
+                    islandContainer.cancelSideSwipeSettle();
                     swipeArmed = mouse.button === userConfig.mouseButton(userConfig.dynamicIslandSwipeButton)
-                        && islandContainer.canShowLyricsSwipe;
-                    swipeStartProgress = islandContainer.islandState === "lyrics" ? 1 : 0;
-                    swipePassedThreshold = false;
+                        && islandContainer.canShowSideSwipe;
+                    swipeStartProgress = islandContainer.swipeTransitionProgress;
+                    swipeStartWidth = mainCapsule.width;
                     swipeMoved = false;
+                    sideSwipeInteractive = swipeArmed;
                     islandContainer.swipeTransitionProgress = swipeStartProgress;
                 }
 
                 onPositionChanged: (mouse) => {
                     if (!pressed || !swipeArmed || suppressNextClick) return;
 
-                    const deltaX = mouse.x - swipeStartX;
-                    const deltaY = Math.abs(mouse.y - swipeStartY);
+                    const mappedPoint = capsuleMouseArea.mapToItem(islandContainer, mouse.x, mouse.y);
+                    const deltaX = mappedPoint.x - swipeStartX;
+                    const deltaY = Math.abs(mappedPoint.y - swipeStartY);
                     const adjustedDeltaX = deltaY < 24 ? deltaX : 0;
-                    const nextProgress = Math.max(0, Math.min(1, swipeStartProgress + adjustedDeltaX / 108));
+                    const minProgress = islandContainer.hasCustomLeftItems ? -1 : 0;
+                    const nextProgress = Math.max(minProgress, Math.min(1, swipeStartProgress + adjustedDeltaX / 108));
 
-                    swipeMoved = swipeMoved || Math.abs(adjustedDeltaX) > 6 || deltaY > 6;
+                    swipeMoved = swipeMoved || Math.abs(nextProgress - swipeStartProgress) > 0.03 || deltaY > 6;
                     islandContainer.swipeTransitionProgress = nextProgress;
-                    if (swipeStartProgress < 0.5) swipePassedThreshold = nextProgress >= 0.56;
-                    else swipePassedThreshold = nextProgress <= 0.44;
+                    mainCapsule.displayedWidth = mainCapsule.sideSwipePreviewWidth;
                 }
 
                 onReleased: {
@@ -1090,24 +1566,67 @@ PanelWindow {
                         suppressNextClick = true;
                         swipeSuppressReset.restart();
                     }
-                    if (swipeArmed && swipePassedThreshold) {
-                        if (swipeStartProgress < 0.5) islandContainer.showLyricsCapsule();
-                        else islandContainer.showTimeCapsule();
+                    const fallbackProgress = islandContainer.sideSwipeRestProgressForProgress(swipeStartProgress);
+                    let settleWidth = islandContainer.sideSwipeRestWidthForProgress(swipeStartProgress);
+                    let settleAction = "";
+
+                    if (swipeArmed) {
+                        const finalProgress = islandContainer.swipeTransitionProgress;
+                        if (swipeStartProgress <= -0.5) {
+                            if (finalProgress >= -0.44) {
+                                settleWidth = 140;
+                                settleAction = "time";
+                            }
+                        } else if (swipeStartProgress >= 0.5) {
+                            if (finalProgress <= 0.44) {
+                                settleWidth = 140;
+                                settleAction = "time";
+                            }
+                        } else if (finalProgress <= -0.56 && islandContainer.hasCustomLeftItems) {
+                            settleWidth = islandContainer.customCapsuleWidth;
+                            settleAction = "custom";
+                        } else if (finalProgress >= 0.56) {
+                            settleWidth = islandContainer.lyricsCapsuleWidth;
+                            settleAction = "lyrics";
+                        }
+                    }
+
+                    sideSwipeInteractive = false;
+
+                    if (swipeArmed)
+                        islandContainer.beginSideSwipeSettle(settleWidth);
+                    else
+                        mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+
+                    if (swipeArmed) {
+                        switch (settleAction) {
+                        case "time":
+                            islandContainer.showTimeCapsule();
+                            break;
+                        case "custom":
+                            islandContainer.showCustomCapsule();
+                            break;
+                        case "lyrics":
+                            islandContainer.showLyricsCapsule();
+                            break;
+                        default:
+                            islandContainer.swipeTransitionProgress = fallbackProgress;
+                        }
                     } else {
-                        islandContainer.swipeTransitionProgress = swipeStartProgress;
+                        islandContainer.swipeTransitionProgress = fallbackProgress;
                     }
                     swipeArmed = false;
-                    swipePassedThreshold = false;
                     swipeMoved = false;
                 }
 
                 onCanceled: {
                     swipeArmed = false;
-                    swipePassedThreshold = false;
                     swipeMoved = false;
+                    sideSwipeInteractive = false;
                     suppressNextClick = false;
                     swipeSuppressReset.stop();
-                    islandContainer.swipeTransitionProgress = islandContainer.islandState === "lyrics" ? 1 : 0;
+                    mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+                    islandContainer.swipeTransitionProgress = islandContainer.swipeRestProgressForState();
                 }
 
                 onClicked: (mouse) => {
@@ -1128,28 +1647,66 @@ PanelWindow {
                 }
             }
 
-            SwipeLyricsLayer {
-                id: swipeLyricsLayer
-                lyricText: islandContainer.lyricsDisplayText
-                timeText: timeObj.currentTime
-                textFontFamily: root.textFontFamily
-                timeFontFamily: root.timeFontFamily
-                textPixelSize: 16
-                minimumWidth: 220
-                maximumWidth: Math.max(220, root.width - 48)
-                transitionProgress: islandContainer.swipeTransitionProgress
-                showSecondaryText: !islandContainer.workspaceFromLyricsMode
-                    && !islandContainer.splitFromLyricsMode
-                showCondition: !root.overviewVisible && (
-                    islandContainer.islandState === "normal"
-                    || islandContainer.islandState === "lyrics"
-                    || (islandContainer.islandState === "split"
-                        && islandContainer.splitFromLyricsMode)
-                    || (islandContainer.islandState === "long_capsule"
-                        && (islandContainer.workspaceFromLyricsMode || islandContainer.swipeTransitionProgress > 0))
-                )
-                onPreferredWidthChanged: {
-                    if (islandContainer.islandState === "lyrics") islandContainer.syncLyricsCapsuleWidth();
+            Loader {
+                id: customSwipeLoader
+                anchors.fill: parent
+                active: islandContainer.customSwipeVisible
+                asynchronous: false
+                visible: active
+
+                onLoaded: {
+                    if (islandContainer.restingState === "custom") islandContainer.syncCustomCapsuleWidth();
+                }
+
+                sourceComponent: Component {
+                    SwipeCustomInfoLayer {
+                        items: islandContainer.customLeftItems
+                        cavaLevels: islandContainer.cavaLevels
+                        timeText: timeObj.currentTime
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.heroFontFamily
+                        timeFontFamily: root.heroFontFamily
+                        minimumWidth: 220
+                        maximumWidth: Math.max(220, root.width - 48)
+                        transitionProgress: islandContainer.swipeTransitionProgress
+                        showSecondaryText: islandContainer.workspaceOriginSide !== "left"
+                            && islandContainer.splitOriginSide !== "left"
+                        showCondition: true
+                        onPreferredWidthChanged: {
+                            if (islandContainer.restingState === "custom") islandContainer.syncCustomCapsuleWidth();
+                        }
+                    }
+                }
+            }
+
+            Loader {
+                id: lyricsSwipeLoader
+                anchors.fill: parent
+                active: islandContainer.lyricsSwipeVisible
+                asynchronous: false
+                visible: active
+
+                onLoaded: {
+                    if (islandContainer.restingState === "lyrics") islandContainer.syncLyricsCapsuleWidth();
+                }
+
+                sourceComponent: Component {
+                    SwipeLyricsLayer {
+                        lyricText: islandContainer.lyricsDisplayText
+                        timeText: timeObj.currentTime
+                        textFontFamily: root.textFontFamily
+                        timeFontFamily: root.timeFontFamily
+                        textPixelSize: 16
+                        minimumWidth: 220
+                        maximumWidth: Math.max(220, root.width - 48)
+                        transitionProgress: islandContainer.rightSwipeProgress
+                        showSecondaryText: islandContainer.workspaceOriginSide !== "right"
+                            && islandContainer.splitOriginSide !== "right"
+                        showCondition: true
+                        onPreferredWidthChanged: {
+                            if (islandContainer.restingState === "lyrics") islandContainer.syncLyricsCapsuleWidth();
+                        }
+                    }
                 }
             }
 
@@ -1157,7 +1714,7 @@ PanelWindow {
                 iconText: islandContainer.splitIcon
                 iconFontFamily: root.iconFontFamily
                 transitionProgress: islandContainer.swipeTransitionProgress
-                slideFromLyrics: islandContainer.splitFromLyricsMode
+                slideDirection: islandContainer.splitOriginSide
                 showCondition: !root.overviewVisible && islandContainer.splitShowsIconOnly
             }
 
@@ -1169,7 +1726,7 @@ PanelWindow {
                 textFontFamily: root.textFontFamily
                 heroFontFamily: root.heroFontFamily
                 transitionProgress: islandContainer.swipeTransitionProgress
-                slideFromLyrics: islandContainer.splitFromLyricsMode
+                slideDirection: islandContainer.splitOriginSide
                 showCondition: !root.overviewVisible && islandContainer.splitUsesExtendedLayout
             }
 
@@ -1178,55 +1735,85 @@ PanelWindow {
                 displayText: "Workspace " + islandContainer.currentWs
                 textFontFamily: root.textFontFamily
                 textPixelSize: 16
-                animateVisibility: islandContainer.restingState !== "lyrics"
+                animateVisibility: islandContainer.restingState === "normal"
                 transitionProgress: islandContainer.swipeTransitionProgress
                 showCondition: !root.overviewVisible
                     && islandContainer.islandState === "long_capsule"
-                    && (islandContainer.workspaceFromLyricsMode || islandContainer.swipeTransitionProgress < 0.001)
-                slideFromLyrics: islandContainer.workspaceFromLyricsMode
+                    && (islandContainer.workspaceOriginSide !== "none"
+                        || Math.abs(islandContainer.swipeTransitionProgress) < 0.001)
+                slideDirection: islandContainer.workspaceOriginSide
             }
 
-            ExpandedPlayerLayer {
-                currentArtUrl: islandContainer.currentArtUrl
-                currentTrack: islandContainer.currentTrack
-                currentArtist: islandContainer.currentArtist
-                timePlayed: islandContainer.timePlayed
-                timeTotal: islandContainer.timeTotal
-                trackProgress: islandContainer.trackProgress
-                activePlayer: islandContainer.activePlayer
-                iconFontFamily: root.iconFontFamily
-                textFontFamily: root.textFontFamily
-                showCondition: !root.overviewVisible && islandContainer.islandState === "expanded"
-                onControlPressed: islandContainer.suppressCapsuleClick()
+            Loader {
+                id: expandedPlayerLoader
+                anchors.fill: parent
+                active: islandContainer.expandedLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    ExpandedPlayerLayer {
+                        currentArtUrl: islandContainer.currentArtUrl
+                        currentTrack: islandContainer.currentTrack
+                        currentArtist: islandContainer.currentArtist
+                        timePlayed: islandContainer.timePlayed
+                        timeTotal: islandContainer.timeTotal
+                        trackProgress: islandContainer.trackProgress
+                        activePlayer: islandContainer.activePlayer
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        showCondition: true
+                        onControlPressed: islandContainer.suppressCapsuleClick()
+                    }
+                }
             }
 
-            NotificationLayer {
-                id: notificationLayer
-                appName: islandContainer.notificationAppName
-                summary: islandContainer.notificationSummary
-                body: islandContainer.notificationBody
-                iconText: userConfig.statusIcons["notification"]
-                iconFontFamily: root.iconFontFamily
-                textFontFamily: root.textFontFamily
-                heroFontFamily: root.heroFontFamily
-                showCondition: !root.overviewVisible && islandContainer.islandState === "notification"
+            Loader {
+                id: notificationLoader
+                anchors.fill: parent
+                active: islandContainer.notificationLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    NotificationLayer {
+                        appName: islandContainer.notificationAppName
+                        summary: islandContainer.notificationSummary
+                        body: islandContainer.notificationBody
+                        iconText: userConfig.statusIcons["notification"]
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        heroFontFamily: root.heroFontFamily
+                        showCondition: true
+                    }
+                }
             }
 
-            ControlCenterLayer {
-                iconFontFamily: root.iconFontFamily
-                textFontFamily: root.textFontFamily
-                heroFontFamily: root.heroFontFamily
-                sliderIntroDelay: mainCapsule.morphDuration
-                currentTime: timeObj.currentTime
-                currentDateLabel: timeObj.currentDateLabel
-                batteryCapacity: islandContainer.batteryCapacity
-                isCharging: islandContainer.isCharging
-                volumeLevel: islandContainer.currentVolume
-                brightnessLevel: islandContainer.currentBrightness
-                currentWorkspace: islandContainer.currentWs
-                currentTrack: islandContainer.currentTrack
-                currentArtist: islandContainer.currentArtist
-                showCondition: !root.overviewVisible && islandContainer.islandState === "control_center"
+            Loader {
+                id: controlCenterLoader
+                anchors.fill: parent
+                active: islandContainer.controlCenterLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    ControlCenterLayer {
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        heroFontFamily: root.heroFontFamily
+                        sliderIntroDelay: mainCapsule.morphDuration
+                        currentTime: timeObj.currentTime
+                        currentDateLabel: timeObj.currentDateLabel
+                        batteryCapacity: islandContainer.batteryCapacity
+                        isCharging: islandContainer.isCharging
+                        volumeLevel: islandContainer.currentVolume
+                        brightnessLevel: islandContainer.currentBrightness
+                        currentWorkspace: islandContainer.currentWs
+                        currentTrack: islandContainer.currentTrack
+                        currentArtist: islandContainer.currentArtist
+                        showCondition: true
+                    }
+                }
             }
 
             Loader {
