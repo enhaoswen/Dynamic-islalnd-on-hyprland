@@ -13,7 +13,7 @@ CPU usage < 2%
 ## Description
 
 
-Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
+Video: https://www.youtube.com/watch?v=vCA8sWLJjiw&list=LL&index=2
 
 
 #### Clock Mode
@@ -46,17 +46,35 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
   <img src="Preview/Preview_3.png" width="450" alt="Preview">
 </div>
 
+<div align="left">
+  <img src="Preview/Preview_8.png" width="450" alt="Preview">
+</div>
 
 ####  Music Player
 <div align="left">
   <img src="Preview/Preview_4.png" width="450" alt="Preview">
 </div>
 
-####  Workspace overview
+####  Workspace Overview
 <div align="left">
   <img src="Preview/Preview_7.png" width="450" alt="Preview">
 </div>
 
+#### Custom Page
+<div align="left">
+  <img src="Preview/Preview_9.png" width="450" alt="Preview">
+</div>
+
+### Items that are supported in Custom Page
+- time
+- data
+- battery
+- volume
+- brightness
+- workspace
+- cpu
+- ram
+- cava
 
 ### Control
 
@@ -65,6 +83,7 @@ Video: https://www.youtube.com/watch?v=SAc6_1Y7QJc
 | Left Click | Open Music Player |
 | Right Click | Open Control Center |
 | Swipe Left | Show Lyrics |
+| Swipe Right | Custom Page |
 | Super + Tab | Open Workspace Overview |
 | Charging / Discharging | Display battery status icon |
 | Brightness Change | Show brightness OSD |
