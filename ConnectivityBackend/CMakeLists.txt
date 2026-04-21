@@ -15,6 +15,8 @@ find_package(Qt6 REQUIRED COMPONENTS Core DBus Qml)
 qt_standard_project_setup()
 
 add_library(ConnectivityBackendplugin SHARED
+    BluetoothPairingAgent.cpp
+    BluetoothPairingAgent.h
     ConnectivityBackendPlugin.cpp
     ConnectivityBackendPlugin.h
     WifiController.cpp

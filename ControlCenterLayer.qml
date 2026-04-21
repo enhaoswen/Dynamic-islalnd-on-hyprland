@@ -66,7 +66,9 @@ Item {
     property string bluetoothInfoMessage: ""
     property string bluetoothError: ""
     property string bluetoothPairAndConnectPath: ""
+    property string bluetoothPendingSecretValue: ""
     readonly property var wifiController: WifiController
+    readonly property var bluetoothPairingAgent: BluetoothPairingAgent
     readonly property var wifiNetworks: wifiController ? wifiController.networks : null
 
     readonly property real sliderKnobSize: 24
@@ -112,6 +114,14 @@ Item {
         ? bluetoothAdapter.state === BluetoothAdapterState.Enabling
             || bluetoothAdapter.state === BluetoothAdapterState.Disabling
         : false
+    readonly property bool bluetoothPairingActive: bluetoothPairingAgent ? bluetoothPairingAgent.requestActive : false
+    readonly property bool bluetoothPairingRequiresInput: bluetoothPairingAgent ? bluetoothPairingAgent.requestRequiresInput : false
+    readonly property bool bluetoothPairingNumericInput: bluetoothPairingAgent ? bluetoothPairingAgent.requestNumericInput : false
+    readonly property bool bluetoothPairingRequiresConfirmation: bluetoothPairingAgent ? bluetoothPairingAgent.requestRequiresConfirmation : false
+    readonly property string bluetoothPairingTitle: bluetoothPairingAgent ? bluetoothPairingAgent.promptTitle : ""
+    readonly property string bluetoothPairingMessage: bluetoothPairingAgent ? bluetoothPairingAgent.promptMessage : ""
+    readonly property string bluetoothPairingDisplayedCode: bluetoothPairingAgent ? bluetoothPairingAgent.displayedCode : ""
+    readonly property bool hasConnectivityPrompt: wifiPendingPasswordSsid.length > 0 || bluetoothPairingActive
     readonly property bool anyConnectivityPanelOpen: wifiPanelOpen || bluetoothPanelOpen
     readonly property string wifiStatusText: wifiController ? wifiController.statusText : "Unavailable"
     readonly property string bluetoothStatusText: buildBluetoothStatusText()
@@ -143,6 +153,44 @@ Item {
     function clearBluetoothMessages() {
         bluetoothInfoMessage = "";
         bluetoothError = "";
+    }
+
+    function submitBluetoothPairingSecret() {
+        if (!bluetoothPairingAgent || !bluetoothPairingRequiresInput)
+            return;
+
+        const secret = trimString(bluetoothPendingSecretValue);
+        if (!secret) {
+            bluetoothError = bluetoothPairingNumericInput
+                ? "Enter the 6-digit passkey first."
+                : "Enter the PIN first.";
+            return;
+        }
+
+        if (bluetoothPairingNumericInput && !/^\d{1,6}$/.test(secret)) {
+            bluetoothError = "Passkeys must be 1 to 6 digits.";
+            return;
+        }
+
+        bluetoothError = "";
+        bluetoothPairingAgent.submitSecret(secret);
+        bluetoothPendingSecretValue = "";
+    }
+
+    function confirmBluetoothPairing() {
+        if (!bluetoothPairingAgent)
+            return;
+
+        bluetoothError = "";
+        bluetoothPairingAgent.confirmRequest();
+    }
+
+    function cancelBluetoothPairing() {
+        if (!bluetoothPairingAgent)
+            return;
+
+        bluetoothPairingAgent.cancelRequest();
+        bluetoothPendingSecretValue = "";
     }
 
     function isConnectivityPanelOpen(kind) {
@@ -177,10 +225,13 @@ Item {
             bluetoothPanelOpen = nextOpen;
 
             if (!nextOpen) {
+                if (bluetoothPairingActive)
+                    cancelBluetoothPairing();
                 if (bluetoothAdapter && bluetoothAdapter.discovering)
                     bluetoothAdapter.discovering = false;
                 bluetoothScanStopTimer.stop();
                 bluetoothPairAndConnectPath = "";
+                bluetoothPendingSecretValue = "";
                 clearBluetoothMessages();
             }
         } else {
@@ -660,6 +711,29 @@ Item {
         }
     }
 
+    Connections {
+        target: bluetoothPairingAgent
+
+        function onRequestChanged() {
+            controlCenter.bluetoothPendingSecretValue = "";
+            if (controlCenter.bluetoothPairingActive) {
+                controlCenter.bluetoothError = "";
+                controlCenter.setConnectivityPanelOpen("bluetooth", true);
+            }
+        }
+
+        function onRegistrationErrorChanged() {
+            if (!controlCenter.bluetoothPairingAgent)
+                return;
+
+            if (!controlCenter.bluetoothPairingAgent.registered
+                    && controlCenter.bluetoothPairingAgent.registrationError.length > 0
+                    && controlCenter.bluetoothPanelOpen) {
+                controlCenter.bluetoothError = controlCenter.bluetoothPairingAgent.registrationError;
+            }
+        }
+    }
+
     Component {
         id: bluetoothDeviceDelegate
 
@@ -782,7 +856,8 @@ Item {
                             && !(deviceCard.deviceObject.paired || deviceCard.deviceObject.bonded)) {
                         controlCenter.bluetoothPairAndConnectPath = "";
                         controlCenter.bluetoothInfoMessage = "";
-                        controlCenter.bluetoothError = "Pairing failed or the device needs a PIN.";
+                        if (!controlCenter.bluetoothPairingActive)
+                            controlCenter.bluetoothError = "Pairing failed or was canceled.";
                     }
                 }
 

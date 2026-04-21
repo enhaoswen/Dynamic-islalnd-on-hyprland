@@ -26,6 +26,9 @@ PanelWindow {
     readonly property var hyprMonitor: screen ? Hyprland.monitorFor(screen) : Hyprland.focusedMonitor
     readonly property string hyprMonitorName: hyprMonitor && hyprMonitor.name ? String(hyprMonitor.name) : ""
     readonly property bool monitorFocused: hyprMonitor ? hyprMonitor.focused : false
+    readonly property bool connectivityPromptActive: controlCenterLoader.item
+        ? controlCenterLoader.item.hasConnectivityPrompt
+        : false
     readonly property int currentMonitorWorkspaceId: hyprMonitor && hyprMonitor.activeWorkspace
         ? hyprMonitor.activeWorkspace.id
         : 1
@@ -73,9 +76,9 @@ PanelWindow {
         : Math.ceil(4 + root.connectivityDetailHeight + 12)
     exclusiveZone: 45
     aboveWindows: true
-    focusable: root.overviewVisible && root.monitorFocused
+    focusable: root.monitorFocused && (root.overviewVisible || root.connectivityPromptActive)
     WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: root.overviewVisible && root.monitorFocused
+    WlrLayershell.keyboardFocus: root.monitorFocused && (root.overviewVisible || root.connectivityPromptActive)
         ? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
     readonly property string iconFontFamily: userConfig.iconFontFamily
@@ -316,16 +319,28 @@ PanelWindow {
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
     }
+    onConnectivityPromptActiveChanged: {
+        if (connectivityPromptActive && monitorFocused)
+            connectivityPromptFocusTimer.restart();
+    }
     onOverviewVisualReadyChanged: {
         if (overviewVisualReady) beginOverviewOpening();
     }
     onMonitorFocusedChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
+        if (connectivityPromptActive && monitorFocused) connectivityPromptFocusTimer.restart();
     }
     onHyprMonitorChanged: syncWorkspaceState()
 
     Timer {
         id: overviewFocusTimer
+        interval: 0
+        repeat: false
+        onTriggered: islandContainer.forceActiveFocus()
+    }
+
+    Timer {
+        id: connectivityPromptFocusTimer
         interval: 0
         repeat: false
         onTriggered: islandContainer.forceActiveFocus()
@@ -430,7 +445,7 @@ PanelWindow {
     FocusScope {
         id: islandContainer
         anchors.fill: parent
-        focus: root.overviewVisible && root.monitorFocused
+        focus: root.monitorFocused && (root.overviewVisible || root.connectivityPromptActive)
 
         property string islandState: "normal"
         property string splitIcon: userConfig.statusIcons["default"]
