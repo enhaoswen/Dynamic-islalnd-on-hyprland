@@ -19,4 +19,4 @@ when I hold left click on the island and hover over it at the same time, later.
 
 FIX: make swipe right to be swipe left, later.
 
-ENHANCE: rename tide-island-config-app to be tide-island-config
+ENHANCE: rename tide-island-config-app to be tide-island-config.
