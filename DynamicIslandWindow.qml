@@ -60,6 +60,13 @@ PanelWindow {
 
     readonly property var userConfig: UserConfig
 
+    function hexToRgba(hexColor, alpha) {
+        var r = parseInt(hexColor.substr(1, 2), 16) / 255
+        var g = parseInt(hexColor.substr(3, 2), 16) / 255
+        var b = parseInt(hexColor.substr(5, 2), 16) / 255
+        return Qt.rgba(r, g, b, alpha)
+    }
+
     Loader {
         id: hyprlandIntegrationLoader
 
@@ -1790,7 +1797,7 @@ PanelWindow {
             )
             color: root.overviewContentVisible
                 ? root.overviewCapsuleColor
-                : (notificationHistorySurface ? "#080808" : Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0))
+                : (notificationHistorySurface ? "#080808" : root.hexToRgba(userConfig.islandBackgroundColor, userConfig.islandBackgroundOpacity / 100.0))
             y: userConfig.islandTopMargin
                 - (1 - root.autoHideProgress) * (targetHeight + userConfig.islandTopMargin + 8)
             x: parent ? parent.width * userConfig.islandPositionX / 100 - width / 2 : 0

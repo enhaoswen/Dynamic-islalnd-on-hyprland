@@ -71,6 +71,7 @@ qt_add_qml_module(tide-island-config-app
         HiddenPathDialog.qml
         General.qml
         CustomPage.qml
+        ColorWheelPicker.qml
         Wallpaper.qml
         WallpaperSettings.qml
         TlpSettings.qml

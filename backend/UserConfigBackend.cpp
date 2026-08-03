@@ -53,6 +53,15 @@ QString jsonString(const QJsonObject &object, QLatin1String key, const QString &
     return value.isString() && !value.toString().isEmpty() ? value.toString() : fallback;
 }
 
+QString jsonColorHex(const QJsonObject &configObject, QLatin1String key, const QString &fallback)
+{
+    const QString raw = jsonString(configObject, key, fallback).trimmed();
+    static const QRegularExpression hexColorRe(QStringLiteral("^#[0-9A-Fa-f]{6}$"));
+    if (hexColorRe.match(raw).hasMatch())
+        return raw.toUpper();
+    return fallback;
+}
+
 int jsonInt(const QJsonObject &object, QLatin1String key, int fallback)
 {
     const QJsonValue value = object.value(key);
@@ -306,6 +315,11 @@ int UserConfigBackend::islandBackgroundOpacity() const
     return m_islandBackgroundOpacity;
 }
 
+QString UserConfigBackend::islandBackgroundColor() const
+{
+    return m_islandBackgroundColor;
+}
+
 int UserConfigBackend::islandHeight() const
 {
     return m_islandHeight;
@@ -475,6 +489,7 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_islandAutoHideDelayMs, jsonBoundedInt(configObject, QLatin1String("islandAutoHideDelayMs"), 1000, 100, 10000), &UserConfigBackend::islandAutoHideDelayMsChanged);
     updateField(this, m_islandWidth, jsonInt(configObject, QLatin1String("islandWidth"), 140), &UserConfigBackend::islandWidthChanged);
     updateField(this, m_islandBackgroundOpacity, jsonBoundedInt(configObject, QLatin1String("islandBackgroundOpacity"), 60, 0, 100), &UserConfigBackend::islandBackgroundOpacityChanged);
+    updateField(this, m_islandBackgroundColor, jsonColorHex(configObject, QLatin1String("islandBackgroundColor"), QStringLiteral("#000000")), &UserConfigBackend::islandBackgroundColorChanged);
     updateField(this, m_islandHeight, jsonInt(configObject, QLatin1String("islandHeight"), 38), &UserConfigBackend::islandHeightChanged);
     updateField(this, m_islandExclusiveZone, jsonBoundedInt(configObject, QLatin1String("islandExclusiveZone"), 45, 0, 1000), &UserConfigBackend::islandExclusiveZoneChanged);
     updateField(this, m_islandTopMargin, jsonBoundedInt(configObject, QLatin1String("islandTopMargin"), 4, 0, 1000), &UserConfigBackend::islandTopMarginChanged);

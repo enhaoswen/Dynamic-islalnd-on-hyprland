@@ -137,6 +137,16 @@ PagePanel {
 
                     SplitLine { width: parent.width }
 
+                    ColorConfigRow {
+                        title: "Background Color"
+                        description: "Color of the island background"
+                        keyName: "islandBackgroundColor"
+                        fallbackColor: "#000000"
+                        width: parent.width
+                    }
+
+                    SplitLine { width: parent.width }
+
                     ClockFormatRow { width: parent.width }
 
                     SplitLine { width: parent.width }
@@ -231,6 +241,44 @@ PagePanel {
         }
     }
 
+    Popup {
+    id: colorPickerPopup
+
+    property var targetRow: null
+
+    modal: true
+    focus: true
+    x: (root.width - width) / 2
+    y: (root.height - height) / 2
+    padding: 0
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+    function openWith(rowRef, initialHex) {
+        targetRow = rowRef
+        wheelPicker.setColor(initialHex)
+        open()
+    }
+
+    background: Rectangle {
+        color: Theme.cardBgColor
+        radius: 16
+        border.width: 1
+        border.color: Theme.splitLineColor
+    }
+
+    contentItem: ColorWheelPicker {
+        id: wheelPicker
+
+        onApplied: function(hex) {
+        if (colorPickerPopup.targetRow)
+            colorPickerPopup.targetRow.commit(hex)
+        colorPickerPopup.close()
+        }
+
+        onCancelled: colorPickerPopup.close()
+    }
+    }
+
     component SplitLine: Rectangle {
         height: 1
         color: Theme.splitLineColor
@@ -299,6 +347,93 @@ PagePanel {
             }
         }
     }
+
+component ColorConfigRow: Item {
+    id: row
+
+    property string title: ""
+    property string description: ""
+    property string keyName: ""
+    property string fallbackColor: "#000000"
+    property string currentColor: fallbackColor
+
+    height: 49
+
+    Component.onCompleted: {
+        currentColor = String(ConfigStore.value(row.keyName, row.fallbackColor))
+    }
+
+    function commit(hex) {
+        currentColor = hex
+        ConfigStore.setValue(row.keyName, hex)
+        ConfigStore.save()
+    }
+
+    Text {
+        id: colorRowTitle
+        text: row.title
+        font.family: Theme.textFontFamily
+        font.pixelSize: 18
+        color: Theme.textColor
+        anchors.top: parent.top
+        anchors.left: parent.left
+    }
+
+    Text {
+        text: row.description
+        font.family: Theme.textFontFamily
+        font.pixelSize: 14
+        anchors.top: colorRowTitle.bottom
+        anchors.topMargin: 5
+        anchors.left: colorRowTitle.left
+        color: Theme.subtleTextColor
+    }
+
+    Rectangle {
+        id: swatchButton
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        width: 110
+        height: 36
+        radius: 7
+        color: Theme.componentBgColor
+        border.width: 1
+        border.color: swatchMouse.containsMouse ? Theme.inputHoverBorderColor : Theme.inputBorderColor
+
+        Behavior on border.color { ColorAnimation { duration: Theme.animationDuration } }
+
+        Row {
+            anchors.centerIn: parent
+            spacing: 8
+
+            Rectangle {
+                width: 20
+                height: 20
+                radius: 10
+                color: row.currentColor
+                border.width: 1
+                border.color: Theme.inputBorderColor
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                text: row.currentColor
+                font.family: Theme.textFontFamily
+                font.pixelSize: 13
+                color: Theme.textColor
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        MouseArea {
+            id: swatchMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: colorPickerPopup.openWith(row, row.currentColor)
+        }
+    }
+}
 
     component ClockFormatRow: Item {
         id: clockRow
