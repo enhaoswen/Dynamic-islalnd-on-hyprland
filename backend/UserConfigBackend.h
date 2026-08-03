@@ -58,6 +58,7 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(int islandPositionX READ islandPositionX NOTIFY islandPositionXChanged FINAL)
     Q_PROPERTY(int islandBackgroundOpacity READ islandBackgroundOpacity NOTIFY islandBackgroundOpacityChanged FINAL)
     Q_PROPERTY(QString islandBackgroundColor READ islandBackgroundColor NOTIFY islandBackgroundColorChanged FINAL)    Q_PROPERTY(int bodyFontSize READ bodyFontSize NOTIFY bodyFontSizeChanged FINAL)
+    Q_PROPERTY(bool islandColorSyncEnabled READ islandColorSyncEnabled NOTIFY islandColorSyncEnabledChanged FINAL)
     Q_PROPERTY(int titleFontSize READ titleFontSize NOTIFY titleFontSizeChanged FINAL)
     Q_PROPERTY(int iconFontSize READ iconFontSize NOTIFY iconFontSizeChanged FINAL)
 
@@ -107,6 +108,10 @@ public:
     int islandPositionX() const;
     int islandBackgroundOpacity() const;
     QString islandBackgroundColor() const;
+    bool islandColorSyncEnabled() const;
+
+    Q_INVOKABLE bool setIslandBackgroundColorFromWallpaper(const QString &imagePath);
+    Q_INVOKABLE void setIslandColorSyncEnabled(bool enabled);
     int bodyFontSize() const;
     int titleFontSize() const;
     int iconFontSize() const;
@@ -160,6 +165,7 @@ signals:
     void islandPositionXChanged();
     void islandBackgroundOpacityChanged();
     void islandBackgroundColorChanged();
+    void islandColorSyncEnabledChanged();
     void bodyFontSizeChanged();
     void titleFontSizeChanged();
     void iconFontSizeChanged();
@@ -167,6 +173,7 @@ signals:
 private:
     void scheduleReload();
     void loadConfig();
+    bool writeConfigValue(const QString &key, const QJsonValue &value, QString *errorString = nullptr);
     void updateWatchedPaths();
     QString configHome() const;
 
@@ -209,6 +216,7 @@ private:
     int m_islandWidth = 140;
     int m_islandBackgroundOpacity = 60;
     QString m_islandBackgroundColor = QStringLiteral("#000000");
+    bool m_islandColorSyncEnabled = false;
     int m_islandHeight = 38;
     int m_islandExclusiveZone = 45;
     int m_islandTopMargin = 4;

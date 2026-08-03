@@ -515,8 +515,11 @@ FocusScope {
         ]
         onExited: function(exitCode) {
             running = false;
-            if (exitCode === 0)
+            if (exitCode === 0) {
                 root.wallpaperApplySucceeded(wallpaperPath);
+                if (root.userConfig.islandColorSyncEnabled)
+                    root.userConfig.setIslandBackgroundColorFromWallpaper(wallpaperPath);
+            }
             if (root.closeAfterApply) {
                 root.closeAfterApply = false;
                 root.closeRequested();
@@ -537,8 +540,11 @@ FocusScope {
         ]
         onExited: function(exitCode) {
             running = false;
-            if (exitCode === 0)
+            if (exitCode === 0) {
                 root.wallpaperApplySucceeded(wallpaperPath);
+                if (root.userConfig.islandColorSyncEnabled)
+                    root.userConfig.setIslandBackgroundColorFromWallpaper(wallpaperPath);
+            }
             if (root.closeAfterApply) {
                 root.closeAfterApply = false;
                 root.closeRequested();
@@ -575,12 +581,43 @@ FocusScope {
         spacing: 6
 
         // ── Search bar (collapsible) ──────────────────────────────────────
-        Item {
+       Item {
             id: searchBar
             property bool expanded: false
 
             width: parent.width
             height: 34
+
+            Rectangle {
+                id: syncButton
+                width: 34
+                height: 34
+                anchors.left: parent.left
+                radius: 10
+                color: root.userConfig.islandColorSyncEnabled
+                    ? Qt.rgba(0.376, 0.647, 0.980, 0.22)
+                    : Qt.rgba(1, 1, 1, syncMouse.containsMouse ? 0.10 : 0.06)
+                border.width: root.userConfig.islandColorSyncEnabled ? 1 : 0
+                border.color: "#60a5fa"
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u27F3"
+                    font.family: root.textFontFamily
+                    font.pixelSize: 15
+                    color: root.userConfig.islandColorSyncEnabled ? "#60a5fa" : Qt.rgba(1, 1, 1, 0.55)
+                }
+
+                MouseArea {
+                    id: syncMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.userConfig.setIslandColorSyncEnabled(!root.userConfig.islandColorSyncEnabled)
+                }
+            }
 
             Rectangle {
                 id: searchBg

@@ -1,7 +1,12 @@
 #include "UserConfigBackend.h"
 
+#include <QColor>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
+#include <QImage>
+#include <QSaveFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -320,6 +325,11 @@ QString UserConfigBackend::islandBackgroundColor() const
     return m_islandBackgroundColor;
 }
 
+bool UserConfigBackend::islandColorSyncEnabled() const
+{
+    return m_islandColorSyncEnabled;
+}
+
 int UserConfigBackend::islandHeight() const
 {
     return m_islandHeight;
@@ -489,6 +499,7 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_islandAutoHideDelayMs, jsonBoundedInt(configObject, QLatin1String("islandAutoHideDelayMs"), 1000, 100, 10000), &UserConfigBackend::islandAutoHideDelayMsChanged);
     updateField(this, m_islandWidth, jsonInt(configObject, QLatin1String("islandWidth"), 140), &UserConfigBackend::islandWidthChanged);
     updateField(this, m_islandBackgroundOpacity, jsonBoundedInt(configObject, QLatin1String("islandBackgroundOpacity"), 60, 0, 100), &UserConfigBackend::islandBackgroundOpacityChanged);
+    updateField(this, m_islandColorSyncEnabled, jsonBool(configObject, QLatin1String("islandColorSyncEnabled"), false), &UserConfigBackend::islandColorSyncEnabledChanged);
     updateField(this, m_islandBackgroundColor, jsonColorHex(configObject, QLatin1String("islandBackgroundColor"), QStringLiteral("#000000")), &UserConfigBackend::islandBackgroundColorChanged);
     updateField(this, m_islandHeight, jsonInt(configObject, QLatin1String("islandHeight"), 38), &UserConfigBackend::islandHeightChanged);
     updateField(this, m_islandExclusiveZone, jsonBoundedInt(configObject, QLatin1String("islandExclusiveZone"), 45, 0, 1000), &UserConfigBackend::islandExclusiveZoneChanged);
@@ -547,4 +558,130 @@ QString UserConfigBackend::configHome() const
     return home.isEmpty()
         ? QStringLiteral(".")
         : QString::fromLocal8Bit(home) + QStringLiteral("/.config");
+}
+
+bool UserConfigBackend::writeConfigValue(const QString &key, const QJsonValue &value, QString *errorString)
+{
+    QJsonObject configObject;
+
+    QFile configFile(m_userConfigPath);
+    if (configFile.exists()) {
+        if (!configFile.open(QIODevice::ReadOnly)) {
+            if (errorString)
+                *errorString = configFile.errorString();
+            return false;
+        }
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(stripJsonComments(configFile.readAll()), &parseError);
+        configFile.close();
+        if (parseError.error == QJsonParseError::NoError && document.isObject())
+            configObject = document.object();
+    }
+
+    configObject.insert(key, value);
+
+    const QFileInfo configInfo(m_userConfigPath);
+    QDir().mkpath(configInfo.absolutePath());
+
+    QSaveFile saveFile(m_userConfigPath);
+    if (!saveFile.open(QIODevice::WriteOnly)) {
+        if (errorString)
+            *errorString = saveFile.errorString();
+        return false;
+    }
+
+    const QJsonDocument outDocument(configObject);
+    if (saveFile.write(outDocument.toJson(QJsonDocument::Indented)) < 0 || !saveFile.commit()) {
+        if (errorString)
+            *errorString = saveFile.errorString();
+        return false;
+    }
+
+    loadConfig();
+    return true;
+}
+
+void UserConfigBackend::setIslandColorSyncEnabled(bool enabled)
+{
+    if (enabled == m_islandColorSyncEnabled)
+        return;
+    writeConfigValue(QStringLiteral("islandColorSyncEnabled"), enabled);
+}
+
+bool UserConfigBackend::setIslandBackgroundColorFromWallpaper(const QString &imagePath)
+{
+    QImage image(imagePath);
+    if (image.isNull())
+        return false;
+
+    const QImage scaled = image
+        .scaled(120, 120, Qt::KeepAspectRatio, Qt::FastTransformation)
+        .convertToFormat(QImage::Format_RGB32);
+
+    struct Bucket {
+        qint64 count = 0;
+        qint64 rSum = 0;
+        qint64 gSum = 0;
+        qint64 bSum = 0;
+    };
+
+    QHash<int, Bucket> buckets;
+
+    const int w = scaled.width();
+    const int h = scaled.height();
+    for (int y = 0; y < h; ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(scaled.constScanLine(y));
+        for (int x = 0; x < w; ++x) {
+            const QRgb pixel = line[x];
+            const int r = qRed(pixel);
+            const int g = qGreen(pixel);
+            const int b = qBlue(pixel);
+
+            const int maxChannel = qMax(r, qMax(g, b));
+            const int minChannel = qMin(r, qMin(g, b));
+            if (maxChannel < 12 || minChannel > 246)
+                continue;
+
+            const int key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+
+            Bucket &bucket = buckets[key];
+            bucket.count++;
+            bucket.rSum += r;
+            bucket.gSum += g;
+            bucket.bSum += b;
+        }
+    }
+
+    if (buckets.isEmpty())
+        return false;
+
+    const Bucket *best = nullptr;
+    for (const Bucket &bucket : buckets) {
+        if (!best || bucket.count > best->count)
+            best = &bucket;
+    }
+
+    if (!best || best->count == 0)
+        return false;
+
+    const int r = static_cast<int>(best->rSum / best->count);
+    const int g = static_cast<int>(best->gSum / best->count);
+    const int b = static_cast<int>(best->bSum / best->count);
+
+    QColor adjusted(r, g, b);
+    int hue = 0;
+    int saturation = 0;
+    int value = 0;
+    int alpha = 255;
+    adjusted.getHsv(&hue, &saturation, &value, &alpha);
+
+        value = qBound(50, static_cast<int>(value * 0.85), 215);
+    adjusted.setHsv(hue, saturation, value, alpha);
+    const QString hex = QStringLiteral("#%1%2%3")
+        .arg(adjusted.red(), 2, 16, QLatin1Char('0'))
+        .arg(adjusted.green(), 2, 16, QLatin1Char('0'))
+        .arg(adjusted.blue(), 2, 16, QLatin1Char('0'))
+        .toUpper();
+
+    return writeConfigValue(QStringLiteral("islandBackgroundColor"), hex);
 }
