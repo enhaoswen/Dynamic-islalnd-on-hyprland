@@ -13,6 +13,7 @@ Item {
 
     readonly property bool isWifi: panelKind === "wifi"
     readonly property bool isBluetooth: panelKind === "bluetooth"
+    readonly property bool isPower: panelKind === "power"
     readonly property var bluetoothDevices: provider ? provider.bluetoothDeviceValues || [] : []
     readonly property var bluetoothConnectedDevices: bluetoothDevicesForSection("connected")
     readonly property var bluetoothPairedDevices: bluetoothDevicesForSection("paired")
@@ -101,14 +102,15 @@ Item {
 
         Row {
             id: headerRow
+            visible: !root.isPower
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 24
+            height: root.isPower ? 0 : 24
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.isWifi ? "Wi-Fi" : "Bluetooth"
+                text: root.isWifi ? "Wi-Fi" : root.isBluetooth ? "Bluetooth" : "Power"
                 color: StyleTokens.textPrimary
                 font.pixelSize: 15
                 font.family: root.heroFontFamily
@@ -121,7 +123,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: headerRow.bottom
-            anchors.topMargin: 14
+            anchors.topMargin: root.isPower ? 0 : 14
             spacing: 10
 
             Rectangle {
@@ -586,6 +588,44 @@ Item {
                 id: contentColumn
                 width: contentFlick.width
                 spacing: 8
+
+                Row {
+                    visible: root.isPower
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 12
+
+                    Repeater {
+                        model: [
+                            { glyph: "\uf023", action: "triggerLock" },
+                            { glyph: "\uf186", action: "triggerSleep" },
+                            { glyph: "\uf021", action: "triggerRestart" },
+                            { glyph: "\uf011", action: "triggerShutdown" }
+                        ]
+
+                        delegate: Rectangle {
+                            width: 48
+                            height: 48
+                            radius: 14
+                            color: StyleTokens.secondaryButton
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.glyph
+                                color: StyleTokens.textPrimary
+                                font.pixelSize: 17
+                                font.family: root.iconFontFamily
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (root.provider && root.provider[modelData.action])
+                                        root.provider[modelData.action]();
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Text {
                     width: parent.width

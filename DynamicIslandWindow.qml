@@ -111,6 +111,14 @@ PanelWindow {
             width: bluetoothConnectivityDetailShell.visible ? Math.ceil(bluetoothConnectivityDetailShell.width) : 0
             height: bluetoothConnectivityDetailShell.visible ? Math.ceil(bluetoothConnectivityDetailShell.height) : 0
         }
+
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(powerConnectivityDetailShell.x)
+            y: Math.floor(powerConnectivityDetailShell.y)
+            width: powerConnectivityDetailShell.visible ? Math.ceil(powerConnectivityDetailShell.width) : 0
+            height: powerConnectivityDetailShell.visible ? Math.ceil(powerConnectivityDetailShell.height) : 0
+        }
     }
     readonly property real capsuleWindowHeight: Math.ceil(
         userConfig.islandTopMargin + mainCapsule.targetHeight + 12
@@ -241,8 +249,9 @@ PanelWindow {
     property bool wifiConnectivityDetailMounted: false
     property bool bluetoothConnectivityDetailOpen: false
     property bool bluetoothConnectivityDetailMounted: false
-    readonly property bool anyConnectivityDetailMounted: wifiConnectivityDetailMounted || bluetoothConnectivityDetailMounted
-    readonly property real connectivityDetailWidth: 318
+    property bool powerConnectivityDetailOpen: false
+    property bool powerConnectivityDetailMounted: false
+    readonly property bool anyConnectivityDetailMounted: wifiConnectivityDetailMounted || bluetoothConnectivityDetailMounted || powerConnectivityDetailMounted
     readonly property real connectivityDetailHeight: 404
     readonly property real controlCenterMaximumExtraHeight: controlCenterLoader.item
         ? controlCenterLoader.item.controlCenterMaximumExtraHeight
@@ -441,6 +450,20 @@ PanelWindow {
             return;
         }
 
+        if (kind === "power") {
+            if (nextOpen) {
+                powerConnectivityDetailCleanupTimer.stop();
+                powerConnectivityDetailMounted = true;
+                powerConnectivityDetailOpen = true;
+            } else {
+                if (!powerConnectivityDetailMounted && !powerConnectivityDetailOpen)
+                    return;
+                powerConnectivityDetailOpen = false;
+                powerConnectivityDetailCleanupTimer.restart();
+            }
+            return;
+        }
+
         if (kind === "bluetooth") {
             if (nextOpen) {
                 bluetoothConnectivityDetailCleanupTimer.stop();
@@ -458,6 +481,7 @@ PanelWindow {
     function closeAllConnectivityDetails() {
         setConnectivityDetailVisible("wifi", false);
         setConnectivityDetailVisible("bluetooth", false);
+        setConnectivityDetailVisible("power", false);
     }
 
     function openOverviewEverywhere() {
@@ -720,6 +744,13 @@ PanelWindow {
         interval: root.connectivityDetailAnimationDuration
         repeat: false
         onTriggered: root.bluetoothConnectivityDetailMounted = false
+    }
+
+    Timer {
+        id: powerConnectivityDetailCleanupTimer
+        interval: root.connectivityDetailAnimationDuration
+        repeat: false
+        onTriggered: root.powerConnectivityDetailMounted = false
     }
 
     OverviewWallpaperCacheController {
@@ -2728,6 +2759,24 @@ PanelWindow {
             availableWidth: root.width
             detailWidth: root.connectivityDetailWidth
             detailHeight: root.connectivityDetailHeight
+            detailGap: root.connectivityDetailGap
+            iconFontFamily: root.iconFontFamily
+            textFontFamily: root.textFontFamily
+            heroFontFamily: root.heroFontFamily
+        }
+
+        ConnectivityDetailShell {
+            id: powerConnectivityDetailShell
+
+            open: root.powerConnectivityDetailOpen
+            mounted: root.powerConnectivityDetailMounted
+            rightSide: true
+            panelKind: "power"
+            provider: controlCenterLoader.item
+            mainCapsule: mainCapsule
+            availableWidth: root.width
+            detailWidth: 260
+            detailHeight: 88
             detailGap: root.connectivityDetailGap
             iconFontFamily: root.iconFontFamily
             textFontFamily: root.textFontFamily
