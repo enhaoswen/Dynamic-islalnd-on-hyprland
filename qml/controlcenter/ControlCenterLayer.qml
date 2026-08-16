@@ -54,6 +54,7 @@ Item {
     property bool wifiPanelOpen: false
     property bool bluetoothPanelOpen: false
     property bool powerPanelOpen: false
+    property bool powerViewActive: false
     property bool batteryDrawerOpen: false
     property bool batteryDrawerDragging: false
     property real batteryDrawerProgress: 0
@@ -1261,8 +1262,14 @@ Item {
     }
 
     Column {
+        id: mainContent
         anchors.fill: parent
+        visible: !controlCenter.powerViewActive
         spacing: 12
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
 
         Item {
             width: parent.width
@@ -1380,9 +1387,9 @@ Item {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: controlCenter.toggleConnectivityOverlay("power")
+                        onClicked: controlCenter.powerViewActive = !controlCenter.powerViewActive
                     }
-		}
+                }
             }
         }
 
@@ -2251,5 +2258,72 @@ Item {
             onCancelRequested: SystemServices.requestVolume()
         }
     }
+    Item {
+        anchors.fill: parent
+        visible: controlCenter.powerViewActive
 
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
+
+        Rectangle {
+            width: 32
+            height: 32
+            radius: 12
+            anchors.top: parent.top
+            anchors.left: parent.left
+            color: backButtonMouse.containsPress ? StyleTokens.secondaryButton : StyleTokens.transparent
+
+            Text {
+                anchors.centerIn: parent
+                text: "\uf060"
+                color: StyleTokens.textPrimary
+                font.pixelSize: 14
+                font.family: controlCenter.iconFontFamily
+            }
+
+            MouseArea {
+                id: backButtonMouse
+                anchors.fill: parent
+                onClicked: controlCenter.powerViewActive = false
+            }
+        }
+
+        Row {
+            anchors.centerIn: parent
+            spacing: 16
+
+            Repeater {
+                model: [
+                    { glyph: "\uf023", action: "triggerLock" },
+                    { glyph: "\uf186", action: "triggerSleep" },
+                    { glyph: "\uf021", action: "triggerRestart" },
+                    { glyph: "\uf011", action: "triggerShutdown" }
+                ]
+
+                delegate: Rectangle {
+                    width: 56
+                    height: 56
+                    radius: 16
+                    color: StyleTokens.secondaryButton
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.glyph
+                        color: StyleTokens.textPrimary
+                        font.pixelSize: 20
+                        font.family: controlCenter.iconFontFamily
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (controlCenter[modelData.action])
+                                controlCenter[modelData.action]();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
