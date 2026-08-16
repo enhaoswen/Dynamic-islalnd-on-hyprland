@@ -54,7 +54,7 @@ Item {
     property bool wifiPanelOpen: false
     property bool bluetoothPanelOpen: false
     property bool powerPanelOpen: false
-    property bool powerViewActive: false
+    property bool powerViewActive: false3
     property bool batteryDrawerOpen: false
     property bool batteryDrawerDragging: false
     property real batteryDrawerProgress: 0
@@ -1375,16 +1375,24 @@ Item {
                     }
                 }
                 Item {
-                    width: 28
-                    height: 14
+                    width: 24
+                    height: 24
                     anchors.verticalCenter: parent.verticalCenter
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 8
+                        color: StyleTokens.transparent
+                    }
+
                     Text {
                         anchors.centerIn: parent
                         text: controlCenter.powerIconGlyph
-                        color: controlCenter.powerPanelOpen ? StyleTokens.white : StyleTokens.textSecondary
-                        font.pixelSize: 13
+                        color: controlCenter.powerViewActive ? StyleTokens.white : StyleTokens.textSecondary
+                        font.pixelSize: 16
                         font.family: iconFontFamily
                     }
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: controlCenter.powerViewActive = !controlCenter.powerViewActive
