@@ -17,6 +17,9 @@ Item {
     readonly property var bluetoothConnectedDevices: bluetoothDevicesForSection("connected")
     readonly property var bluetoothPairedDevices: bluetoothDevicesForSection("paired")
     readonly property var bluetoothAvailableDevices: bluetoothDevicesForSection("available")
+    readonly property int bluetoothDeviceCount: bluetoothConnectedDevices.length
+        + bluetoothPairedDevices.length
+        + bluetoothAvailableDevices.length
     readonly property bool bluetoothScanning: provider && provider.bluetoothAdapter
         ? provider.bluetoothAdapter.discovering
         : !!(provider && provider.bluetoothListRunning)
@@ -45,6 +48,25 @@ Item {
             if (root.bluetoothDeviceVisible(device, section))
                 filtered.push(device);
         }
+
+        filtered.sort(function(left, right) {
+            const leftNamed = root.provider && root.provider.bluetoothDeviceHasFriendlyName
+                ? root.provider.bluetoothDeviceHasFriendlyName(left)
+                : false;
+            const rightNamed = root.provider && root.provider.bluetoothDeviceHasFriendlyName
+                ? root.provider.bluetoothDeviceHasFriendlyName(right)
+                : false;
+            if (leftNamed !== rightNamed)
+                return leftNamed ? -1 : 1;
+
+            const leftName = root.provider && root.provider.bluetoothDeviceName
+                ? root.provider.bluetoothDeviceName(left)
+                : "";
+            const rightName = root.provider && root.provider.bluetoothDeviceName
+                ? root.provider.bluetoothDeviceName(right)
+                : "";
+            return leftName.localeCompare(rightName);
+        });
 
         return filtered;
     }
@@ -99,7 +121,7 @@ Item {
             }
         }
 
-        Row {
+        Item {
             id: headerRow
             anchors.left: parent.left
             anchors.right: parent.right
@@ -107,12 +129,48 @@ Item {
             height: 24
 
             Text {
+                anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.isWifi ? "Wi-Fi" : "Bluetooth"
                 color: StyleTokens.textPrimary
                 font.pixelSize: 15
                 font.family: root.heroFontFamily
                 font.weight: Font.Bold
+            }
+
+            Rectangle {
+                id: bluetoothScanButton
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 58
+                height: 24
+                radius: 12
+                visible: root.isBluetooth && root.provider
+                    && root.provider.bluetoothAvailable
+                    && root.provider.bluetoothEnabled
+                color: bluetoothScanMouse.containsMouse
+                    ? StyleTokens.moduleHover
+                    : StyleTokens.secondaryButton
+
+                Text {
+                    anchors.centerIn: parent
+                    text: root.bluetoothScanning ? "Stop" : "Scan"
+                    color: root.bluetoothScanning ? StyleTokens.accentSoft : StyleTokens.textPrimary
+                    font.pixelSize: 10
+                    font.family: root.textFontFamily
+                    font.weight: Font.DemiBold
+                }
+
+                MouseArea {
+                    id: bluetoothScanMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.provider)
+                            root.provider.toggleBluetoothScan();
+                    }
+                }
             }
         }
 
@@ -726,6 +784,19 @@ Item {
                     font.family: root.textFontFamily
                 }
 
+                Text {
+                    width: parent.width
+                    visible: root.isBluetooth && root.provider
+                        && root.provider.bluetoothEnabled
+                        && !root.bluetoothScanning
+                        && root.bluetoothDeviceCount === 0
+                    text: "No devices found. Put your device in pairing mode, then scan again."
+                    color: StyleTokens.textMuted
+                    font.pixelSize: 12
+                    font.family: root.textFontFamily
+                    wrapMode: Text.Wrap
+                }
+
                 Item {
                     width: parent.width
                     height: btConnectedSection.visible ? btConnectedSection.implicitHeight : 0
@@ -735,6 +806,14 @@ Item {
                         id: btConnectedSection
                         width: parent.width
                         spacing: 8
+
+                        Text {
+                            text: "Connected"
+                            color: StyleTokens.textTertiary
+                            font.pixelSize: 10
+                            font.family: root.textFontFamily
+                            font.weight: Font.DemiBold
+                        }
 
                         Repeater {
                             model: root.bluetoothConnectedDevices
@@ -761,6 +840,14 @@ Item {
                         width: parent.width
                         spacing: 8
 
+                        Text {
+                            text: "Paired"
+                            color: StyleTokens.textTertiary
+                            font.pixelSize: 10
+                            font.family: root.textFontFamily
+                            font.weight: Font.DemiBold
+                        }
+
                         Repeater {
                             model: root.bluetoothPairedDevices
 
@@ -785,6 +872,14 @@ Item {
                         id: btAvailableSection
                         width: parent.width
                         spacing: 8
+
+                        Text {
+                            text: "Available"
+                            color: StyleTokens.textTertiary
+                            font.pixelSize: 10
+                            font.family: root.textFontFamily
+                            font.weight: Font.DemiBold
+                        }
 
                         Repeater {
                             model: root.bluetoothAvailableDevices

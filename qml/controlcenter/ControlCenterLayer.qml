@@ -3,6 +3,7 @@ import QtQuick.Shapes
 import Quickshell.Bluetooth
 import Quickshell.Io
 import IslandBackend
+import "../common/BluetoothFormatting.js" as BluetoothFormatting
 
 Item {
     id: controlCenter
@@ -492,12 +493,20 @@ Item {
             changed = bluetoothPanelOpen !== nextOpen;
             bluetoothPanelOpen = nextOpen;
 
-            if (!nextOpen) {
+            if (nextOpen) {
+                if (bluetoothAdapter && bluetoothEnabled && !bluetoothAdapter.discovering) {
+                    bluetoothAdapter.discovering = true;
+                    bluetoothInfoMessage = "Scanning for nearby devices...";
+                    bluetoothScanStopTimer.restart();
+                }
+            } else {
                 if (bluetoothPairingActive)
                     cancelBluetoothPairing();
                 if (bluetoothAdapter && bluetoothAdapter.discovering)
                     bluetoothAdapter.discovering = false;
                 bluetoothScanStopTimer.stop();
+                bluetoothConnectAfterPairTimer.stop();
+                bluetoothConnectionTimeoutTimer.stop();
                 bluetoothPairAndConnectPath = "";
                 bluetoothPendingSecretValue = "";
                 clearBluetoothMessages();
@@ -700,14 +709,25 @@ Item {
 
     function bluetoothDeviceName(device) {
         if (!device) return "Unknown device";
-        const preferred = trimString(device.deviceName);
-        if (preferred.length > 0) return preferred;
+        return BluetoothFormatting.displayName(
+            device.name,
+            device.deviceName,
+            device.address,
+            device.icon
+        );
+    }
 
-        const alias = trimString(device.name);
-        if (alias.length > 0) return alias;
+    function bluetoothDeviceHasFriendlyName(device) {
+        if (!device) return false;
+        return BluetoothFormatting.friendlyName(
+            device.name,
+            device.deviceName,
+            device.address
+        ).length > 0;
+    }
 
-        const address = trimString(device.address);
-        return address.length > 0 ? address : "Unknown device";
+    function bluetoothDeviceAddress(device) {
+        return device ? BluetoothFormatting.addressLabel(device.address) : "";
     }
 
     function bluetoothDeviceStateText(device) {
@@ -734,6 +754,10 @@ Item {
         const stateLabel = bluetoothDeviceStateText(device);
         if (stateLabel.length > 0) parts.push(stateLabel);
         if (device && device.batteryAvailable) parts.push(bluetoothBatteryPercent(device) + "%");
+        if (device && !bluetoothDeviceHasFriendlyName(device)) {
+            const address = bluetoothDeviceAddress(device);
+            if (address.length > 0) parts.push(address);
+        }
         return parts.join(" • ");
     }
 
@@ -822,27 +846,111 @@ Item {
         bluetoothError = "";
 
         if (device.connected) {
-            bluetoothInfoMessage = "";
+            bluetoothInfoMessage = "Disconnecting from " + bluetoothDeviceName(device) + "...";
+            bluetoothMessageClearTimer.restart();
             device.disconnect();
             return;
         }
 
         if (device.paired || device.bonded) {
-            bluetoothInfoMessage = "";
+            bluetoothPairAndConnectPath = device.dbusPath;
+            bluetoothInfoMessage = "Connecting to " + bluetoothDeviceName(device) + "...";
+            device.trusted = true;
+            bluetoothConnectionTimeoutTimer.restart();
             device.connect();
             return;
         }
 
         bluetoothPairAndConnectPath = device.dbusPath;
         bluetoothInfoMessage = "Pairing " + bluetoothDeviceName(device) + "...";
+        bluetoothConnectionTimeoutTimer.restart();
         device.pair();
+    }
+
+    function bluetoothDeviceForPath(path) {
+        const devices = bluetoothDeviceValues || [];
+        for (let index = 0; index < devices.length; index++) {
+            const device = devices[index];
+            if (device && device.dbusPath === path)
+                return device;
+        }
+        return null;
+    }
+
+    function finishBluetoothConnection(device) {
+        if (!device || bluetoothPairAndConnectPath !== device.dbusPath)
+            return;
+
+        if (device.paired || device.bonded)
+            device.trusted = true;
+
+        bluetoothConnectAfterPairTimer.stop();
+        bluetoothConnectionTimeoutTimer.stop();
+        bluetoothPairAndConnectPath = "";
+        bluetoothInfoMessage = "";
+        bluetoothError = "";
+    }
+
+    function continueBluetoothPairAndConnect(device) {
+        if (!device || bluetoothPairAndConnectPath !== device.dbusPath)
+            return;
+        if (device.pairing)
+            return;
+
+        if (!(device.paired || device.bonded)) {
+            bluetoothConnectAfterPairTimer.stop();
+            bluetoothConnectionTimeoutTimer.stop();
+            bluetoothPairAndConnectPath = "";
+            bluetoothInfoMessage = "";
+            if (!bluetoothPairingActive)
+                bluetoothError = "Pairing failed or was canceled.";
+            return;
+        }
+
+        device.trusted = true;
+        if (device.connected) {
+            finishBluetoothConnection(device);
+            return;
+        }
+
+        bluetoothInfoMessage = "Connecting to " + bluetoothDeviceName(device) + "...";
+        bluetoothConnectAfterPairTimer.restart();
+    }
+
+    function handleBluetoothConnectionStateChanged(device) {
+        if (!device || bluetoothPairAndConnectPath !== device.dbusPath)
+            return;
+
+        if (device.connected) {
+            if (device.pairing)
+                return;
+            finishBluetoothConnection(device);
+            return;
+        }
+
+        if (!device.pairing
+                && (device.paired || device.bonded)
+                && device.state === BluetoothDeviceState.Disconnected
+                && !bluetoothConnectAfterPairTimer.running) {
+            bluetoothConnectionTimeoutTimer.stop();
+            bluetoothPairAndConnectPath = "";
+            bluetoothInfoMessage = "";
+            bluetoothError = "Paired successfully, but the connection failed. Make sure the device is still ready to connect.";
+        }
     }
 
     function forgetBluetoothDevice(device) {
         if (!device) return;
-        if (bluetoothPairAndConnectPath === device.dbusPath)
+        const name = bluetoothDeviceName(device);
+        if (bluetoothPairAndConnectPath === device.dbusPath) {
+            bluetoothConnectAfterPairTimer.stop();
+            bluetoothConnectionTimeoutTimer.stop();
             bluetoothPairAndConnectPath = "";
+        }
         device.forget();
+        bluetoothError = "";
+        bluetoothInfoMessage = "Forgot " + name + ".";
+        bluetoothMessageClearTimer.restart();
     }
 
     anchors.fill: parent
@@ -1130,6 +1238,46 @@ Item {
     }
 
     Timer {
+        id: bluetoothConnectAfterPairTimer
+        interval: 350
+        repeat: false
+        onTriggered: {
+            const device = controlCenter.bluetoothDeviceForPath(controlCenter.bluetoothPairAndConnectPath);
+            if (!device)
+                return;
+            if (device.connected) {
+                controlCenter.finishBluetoothConnection(device);
+                return;
+            }
+            device.connect();
+        }
+    }
+
+    Timer {
+        id: bluetoothConnectionTimeoutTimer
+        interval: 30000
+        repeat: false
+        onTriggered: {
+            if (controlCenter.bluetoothPairAndConnectPath.length === 0)
+                return;
+            bluetoothConnectAfterPairTimer.stop();
+            controlCenter.bluetoothPairAndConnectPath = "";
+            controlCenter.bluetoothInfoMessage = "";
+            controlCenter.bluetoothError = "Bluetooth pairing or connection timed out. Put the device back in pairing mode and try again.";
+        }
+    }
+
+    Timer {
+        id: bluetoothMessageClearTimer
+        interval: 2500
+        repeat: false
+        onTriggered: {
+            if (controlCenter.bluetoothPairAndConnectPath.length === 0)
+                controlCenter.bluetoothInfoMessage = "";
+        }
+    }
+
+    Timer {
         id: batteryDrawerSettleTimer
         interval: 300
         repeat: false
@@ -1153,13 +1301,56 @@ Item {
                 controlCenter.bluetoothPairAndConnectPath = "";
                 controlCenter.bluetoothInfoMessage = "";
                 controlCenter.bluetoothError = "";
-                controlCenter.bluetoothScanStopTimer.stop();
+                bluetoothScanStopTimer.stop();
+                bluetoothConnectAfterPairTimer.stop();
+                bluetoothConnectionTimeoutTimer.stop();
             }
         }
 
         function onDiscoveringChanged() {
             if (!controlCenter.bluetoothAdapter.discovering)
-                controlCenter.bluetoothScanStopTimer.stop();
+                bluetoothScanStopTimer.stop();
+        }
+    }
+
+    // Keep device state observers outside the filtered UI rows. A device moves
+    // from "available" to "paired" during first-time pairing, which destroys
+    // its old row before a row-local PairedChanged handler can reliably finish
+    // the trust-and-connect sequence.
+    Repeater {
+        model: controlCenter.bluetoothDeviceValues
+
+        delegate: Item {
+            width: 0
+            height: 0
+            visible: false
+
+            property var bluetoothDevice: modelData
+
+            Connections {
+                target: bluetoothDevice
+                ignoreUnknownSignals: true
+
+                function onPairedChanged() {
+                    controlCenter.continueBluetoothPairAndConnect(bluetoothDevice);
+                }
+
+                function onBondedChanged() {
+                    controlCenter.continueBluetoothPairAndConnect(bluetoothDevice);
+                }
+
+                function onPairingChanged() {
+                    controlCenter.continueBluetoothPairAndConnect(bluetoothDevice);
+                }
+
+                function onConnectedChanged() {
+                    controlCenter.handleBluetoothConnectionStateChanged(bluetoothDevice);
+                }
+
+                function onStateChanged() {
+                    controlCenter.handleBluetoothConnectionStateChanged(bluetoothDevice);
+                }
+            }
         }
     }
 

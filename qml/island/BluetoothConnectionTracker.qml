@@ -15,6 +15,12 @@ Item {
 
     property string connectedSignature: ""
     property bool baselineReady: false
+    property bool delayedSyncShowsConnection: false
+
+    function scheduleSync(showNewConnection) {
+        delayedSyncShowsConnection = delayedSyncShowsConnection || showNewConnection;
+        delayedSyncTimer.restart();
+    }
 
     function deviceText(value) {
         return String(value === undefined || value === null ? "" : value).trim();
@@ -138,6 +144,19 @@ Item {
         }
     }
 
+    Timer {
+        id: delayedSyncTimer
+
+        interval: 0
+        repeat: false
+
+        onTriggered: {
+            const showNewConnection = root.delayedSyncShowsConnection;
+            root.delayedSyncShowsConnection = false;
+            root.sync(showNewConnection);
+        }
+    }
+
     Repeater {
         model: root.devices
 
@@ -149,9 +168,9 @@ Item {
             property var bluetoothDevice: modelData
 
             Component.onCompleted: root.sync(true)
-            Component.onDestruction: Qt.callLater(function() {
-                root.sync(true);
-            })
+            // Queue work on the long-lived tracker. A Qt.callLater closure made
+            // by this delegate loses its QML context when the delegate dies.
+            Component.onDestruction: root.scheduleSync(true)
 
             Connections {
                 target: bluetoothDevice

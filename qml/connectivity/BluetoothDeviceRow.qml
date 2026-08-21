@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Bluetooth
 import IslandBackend
 
 Rectangle {
@@ -12,31 +13,49 @@ Rectangle {
 
     readonly property bool hasProvider: provider !== null && provider !== undefined
     readonly property bool hasDevice: device !== null && device !== undefined
-    readonly property bool canInteract: hasProvider && hasDevice && provider.bluetoothEnabled
     readonly property bool paired: hasDevice && (device.paired || device.bonded)
     readonly property bool connected: hasDevice && device.connected
     readonly property bool pairing: hasDevice && device.pairing
+    readonly property bool busy: pairing || (hasDevice
+        && (device.state === BluetoothDeviceState.Connecting
+            || device.state === BluetoothDeviceState.Disconnecting))
+    readonly property string pendingPath: hasProvider ? provider.bluetoothPairAndConnectPath : ""
+    readonly property bool anotherOperationActive: pendingPath.length > 0
+        && hasDevice && pendingPath !== device.dbusPath
+    readonly property bool canForget: paired && !connected && !busy && !anotherOperationActive
+    readonly property bool canInteract: hasProvider && hasDevice && provider.bluetoothEnabled
+        && !busy && !anotherOperationActive
     readonly property string actionText: {
-        if (section === "connected") return "✓";
+        if (hasDevice && device.state === BluetoothDeviceState.Connecting) return "Connecting";
+        if (hasDevice && device.state === BluetoothDeviceState.Disconnecting) return "Disconnecting";
+        if (section === "connected") return "Disconnect";
         if (section === "paired") return "Connect";
         return pairing ? "Pairing" : "Pair";
     }
-    readonly property string subtitleText: section === "connected"
-        ? "Connected"
-        : (hasProvider && provider.bluetoothDeviceSubtitle
-            ? provider.bluetoothDeviceSubtitle(device)
-            : "")
+    readonly property string subtitleText: hasProvider && provider.bluetoothDeviceSubtitle
+        ? provider.bluetoothDeviceSubtitle(device)
+        : ""
     readonly property color iconColor: section === "available" ? StyleTokens.textTertiary : StyleTokens.accent
 
     width: parent ? parent.width : 0
-    height: 52
+    height: 56
     radius: 14
-    color: StyleTokens.transparent
+    color: primaryMouse.containsMouse && root.canInteract
+        ? StyleTokens.moduleHover
+        : StyleTokens.transparent
+    opacity: root.busy ? 0.68 : 1
     clip: true
 
+    Behavior on color {
+        ColorAnimation { duration: StyleTokens.durationFast }
+    }
+
     MouseArea {
+        id: primaryMouse
         anchors.fill: parent
         enabled: root.canInteract
+        hoverEnabled: true
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
         onClicked: {
             if (root.provider && root.provider.handleBluetoothDevicePressed)
@@ -61,7 +80,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: 26
             anchors.top: parent.top
-            anchors.right: actionLabel.left
+            anchors.right: actionRow.left
             anchors.rightMargin: 8
             text: root.hasProvider && root.provider.bluetoothDeviceName
                 ? root.provider.bluetoothDeviceName(root.device)
@@ -77,7 +96,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: 26
             anchors.bottom: parent.bottom
-            anchors.right: actionLabel.left
+            anchors.right: actionRow.left
             anchors.rightMargin: 8
             text: root.subtitleText
             color: StyleTokens.textMuted
@@ -86,62 +105,43 @@ Rectangle {
             elide: Text.ElideRight
         }
 
-        Text {
-            id: actionLabel
-
+        Row {
+            id: actionRow
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.actionText
-            color: root.section === "connected" ? StyleTokens.success : StyleTokens.textPrimary
-            font.pixelSize: root.section === "connected" ? 18 : 11
-            font.family: root.textFontFamily
-            font.weight: Font.DemiBold
-        }
-    }
+            spacing: 10
 
-    Connections {
-        target: root.device
-        ignoreUnknownSignals: true
+            Text {
+                text: "Forget"
+                color: forgetMouse.containsMouse ? StyleTokens.error : StyleTokens.textTertiary
+                font.pixelSize: 10
+                font.family: root.textFontFamily
+                font.weight: Font.Medium
+                visible: root.canForget
 
-        function onPairedChanged() {
-            if (!root.provider || !root.device)
-                return;
-            if (root.provider.bluetoothPairAndConnectPath !== root.device.dbusPath)
-                return;
-
-            if (root.device.paired || root.device.bonded) {
-                root.device.trusted = true;
-                root.device.connect();
-                root.provider.bluetoothInfoMessage = "Connecting to "
-                    + root.provider.bluetoothDeviceName(root.device) + "...";
+                MouseArea {
+                    id: forgetMouse
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    enabled: root.canForget
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.provider && root.device)
+                            root.provider.forgetBluetoothDevice(root.device);
+                    }
+                }
             }
-        }
 
-        function onPairingChanged() {
-            if (!root.provider || !root.device)
-                return;
-            if (root.provider.bluetoothPairAndConnectPath !== root.device.dbusPath)
-                return;
-
-            if (!root.device.pairing && !(root.device.paired || root.device.bonded)) {
-                root.provider.bluetoothPairAndConnectPath = "";
-                root.provider.bluetoothInfoMessage = "";
-                if (!root.provider.bluetoothPairingActive)
-                    root.provider.bluetoothError = "Pairing failed or was canceled.";
-            }
-        }
-
-        function onConnectedChanged() {
-            if (!root.provider || !root.device)
-                return;
-            if (root.provider.bluetoothPairAndConnectPath !== root.device.dbusPath)
-                return;
-
-            if (root.device.connected) {
-                root.provider.bluetoothPairAndConnectPath = "";
-                root.provider.bluetoothInfoMessage = "";
-                root.provider.bluetoothError = "";
+            Text {
+                id: actionLabel
+                text: root.actionText
+                color: root.connected ? StyleTokens.accentSoft : StyleTokens.textPrimary
+                font.pixelSize: 11
+                font.family: root.textFontFamily
+                font.weight: Font.DemiBold
             }
         }
     }
+
 }

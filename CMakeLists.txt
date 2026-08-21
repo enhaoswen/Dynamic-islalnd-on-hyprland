@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(TideIsland VERSION 1.0.35 LANGUAGES CXX)
+project(TideIsland VERSION 1.0.36 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,6 +57,22 @@ target_link_libraries(application_search_tests PRIVATE
 )
 
 add_test(NAME application_search COMMAND application_search_tests)
+
+add_executable(bluetooth_formatting_tests
+    tests/bluetooth_formatting_tests.cpp
+)
+
+target_compile_definitions(bluetooth_formatting_tests PRIVATE
+    BLUETOOTH_FORMATTING_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/qml/common/BluetoothFormatting.js"
+)
+
+target_link_libraries(bluetooth_formatting_tests PRIVATE
+    Qt6::Core
+    Qt6::Qml
+    Qt6::Test
+)
+
+add_test(NAME bluetooth_formatting COMMAND bluetooth_formatting_tests)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/lyricsmpris_core_tests.cpp")
     add_executable(lyricsmpris_tests
