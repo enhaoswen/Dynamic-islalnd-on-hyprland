@@ -86,11 +86,22 @@ Item {
     signal closeRequested()
 
     visible: opacity > 0
+    focus: showCondition
     opacity: showCondition ? 1 : 0
     width: implicitWidth
     height: implicitHeight
     implicitWidth: overviewCard.implicitWidth
     implicitHeight: overviewCard.implicitHeight
+
+    function grabKeyboardFocus() {
+        root.focus = true
+        root.forceActiveFocus()
+    }
+
+    Keys.onEscapePressed: event => {
+        root.closeRequested()
+        event.accepted = true
+    }
 
     // ── helpers ──────────────────────────────────────────────
 

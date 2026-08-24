@@ -1,6 +1,6 @@
 # Maintainer: whysooraj <whysooraj.official@gmail.com>
 pkgname=tide-island
-pkgver=1.0.36
+pkgver=1.0.37
 pkgrel=1
 _srcdir=Tide-island-$pkgver
 _builddir=build-$pkgver
@@ -18,6 +18,7 @@ depends=(
     'wireplumber'
     'pipewire'
     'dbus'
+    'xdg-utils'
     'libpulse'
     'systemd'
     'brightnessctl'

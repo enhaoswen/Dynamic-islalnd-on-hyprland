@@ -42,6 +42,7 @@ private slots:
     void legacyArrowShortcutsMigrateToBidirectionalCycle();
     void defaultsIncludeNotificationHistory();
     void defaultsIncludeApplicationLauncher();
+    void defaultsIncludeFileShelf();
     void applicationLauncherFavoritesPersistAndResolveNames();
     void disabledShortcutPersistsAndIsNotGenerated();
     void disabledShortcutUpdatesActiveHyprlandLuaBlock();
@@ -103,6 +104,27 @@ void ShortcutConfigTests::defaultsCycleIslandViewsWithArrowKeys()
 
     QVERIFY(foundNextView);
     QVERIFY(foundPreviousView);
+}
+
+void ShortcutConfigTests::defaultsIncludeFileShelf()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toLocal8Bit());
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    Backend backend;
+    bool foundFileShelf = false;
+    for (const QVariant &value : backend.shortcutBindings()) {
+        const QVariantMap binding = value.toMap();
+        foundFileShelf = foundFileShelf
+            || (binding.value(QStringLiteral("mods")).toString() == QStringLiteral("SUPER")
+                && binding.value(QStringLiteral("key")).toString() == QStringLiteral("O")
+                && binding.value(QStringLiteral("target")).toString() == QStringLiteral("tide")
+                && binding.value(QStringLiteral("method")).toString() == QStringLiteral("toggleFileShelf"));
+    }
+
+    QVERIFY(foundFileShelf);
 }
 
 void ShortcutConfigTests::legacyArrowShortcutsMigrateToBidirectionalCycle()
@@ -352,7 +374,7 @@ void ShortcutConfigTests::niriDefaultsExcludeWorkspaceOverview()
     Backend backend;
     QVERIFY(!backend.supportsTideWorkspaceOverview());
     QVERIFY(backend.supportsNiriShortcutSnippets());
-    QCOMPARE(backend.shortcutBindings().size(), 9);
+    QCOMPARE(backend.shortcutBindings().size(), 10);
 
     for (const QVariant &value : backend.shortcutBindings()) {
         const QVariantMap binding = value.toMap();
@@ -381,6 +403,8 @@ void ShortcutConfigTests::niriConfigUsesNiriKeyNames()
     QVERIFY(config.contains(QStringLiteral("\"tide\" \"toggleWallpaperPicker\"")));
     QVERIFY(config.contains(QStringLiteral("Super+slash")));
     QVERIFY(config.contains(QStringLiteral("\"tide\" \"toggleApplicationLauncher\"")));
+    QVERIFY(config.contains(QStringLiteral("Super+O")));
+    QVERIFY(config.contains(QStringLiteral("\"tide\" \"toggleFileShelf\"")));
     QVERIFY(config.contains(QStringLiteral("Super+N")));
     QVERIFY(config.contains(QStringLiteral("\"tide\" \"toggleNotificationCenter\"")));
     QVERIFY(!config.contains(QStringLiteral("overview")));

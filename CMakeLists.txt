@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(TideIsland VERSION 1.0.36 LANGUAGES CXX)
+project(TideIsland VERSION 1.0.37 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -73,6 +73,24 @@ target_link_libraries(bluetooth_formatting_tests PRIVATE
 )
 
 add_test(NAME bluetooth_formatting COMMAND bluetooth_formatting_tests)
+
+add_executable(file_shelf_model_tests
+    tests/file_shelf_model_tests.cpp
+    backend/FileShelfModel.h
+    backend/FileShelfModel.cpp
+)
+
+target_include_directories(file_shelf_model_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/backend
+)
+
+target_link_libraries(file_shelf_model_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+)
+
+add_test(NAME file_shelf_model COMMAND file_shelf_model_tests)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/lyricsmpris_core_tests.cpp")
     add_executable(lyricsmpris_tests
@@ -187,6 +205,8 @@ qt_add_qml_module(IslandBackend
         backend/CompositorBackend.cpp
         backend/StyleTokensBackend.h
         backend/StyleTokensBackend.cpp
+        backend/FileShelfModel.h
+        backend/FileShelfModel.cpp
         backend/UserConfigBackend.h
         backend/UserConfigBackend.cpp
         backend/BluetoothPairingAgent.h

@@ -83,6 +83,13 @@ PagePanel {
                 "method": "toggleApplicationLauncher"
             },
             {
+                "action": "File shelf",
+                "mods": "SUPER",
+                "key": "O",
+                "target": "tide",
+                "method": "toggleFileShelf"
+            },
+            {
                 "action": "Toggle island",
                 "mods": "SUPER",
                 "key": "F",

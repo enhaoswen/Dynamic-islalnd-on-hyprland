@@ -94,6 +94,14 @@ PanelWindow {
             width: Math.ceil(mainCapsule.width)
             height: Math.ceil(mainCapsule.height)
         }
+
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(fileShelfBubble.x)
+            y: Math.floor(fileShelfBubble.y)
+            width: fileShelfBubble.visible ? Math.ceil(fileShelfBubble.width) : 0
+            height: fileShelfBubble.visible ? Math.ceil(fileShelfBubble.height) : 0
+        }
         
         // Add existing detail shells
         Region {
@@ -150,18 +158,22 @@ PanelWindow {
     exclusiveZone: Math.ceil(root.baseExclusiveZone * root.exclusiveZoneProgress)
     WlrLayershell.layer: islandContainer.wallpaperPickerLayerVisible
         || islandContainer.applicationLauncherLayerVisible
+        || islandContainer.fileShelfLayerVisible
         ? WlrLayer.Overlay
         : WlrLayer.Top
     WlrLayershell.keyboardFocus: {
-        if (islandContainer.wallpaperPickerLayerVisible
+        if (islandContainer.controlCenterLayerVisible
+                || islandContainer.wallpaperPickerLayerVisible
                 || islandContainer.applicationLauncherLayerVisible)
             return WlrKeyboardFocus.Exclusive;
+        if (islandContainer.fileShelfLayerVisible)
+            return WlrKeyboardFocus.OnDemand;
         // Keep keyboard focus on the overview until an overview action closes it.
         // Click-to-focus closes the overview before focusing the selected client.
         if (root.monitorFocused && root.overviewVisible)
             return WlrKeyboardFocus.Exclusive;
         if (islandContainer.expandedPlayerKeyboardFocusRequested)
-            return WlrKeyboardFocus.OnDemand;
+            return WlrKeyboardFocus.Exclusive;
         if (root.monitorFocused && root.connectivityPromptActive)
             return WlrKeyboardFocus.OnDemand;
         return WlrKeyboardFocus.None;
@@ -599,6 +611,13 @@ PanelWindow {
             islandContainer.showApplicationLauncher();
     }
 
+    function toggleFileShelfWindow() {
+        if (islandContainer.islandState === "file_shelf")
+            islandContainer.smartRestoreState();
+        else
+            islandContainer.showFileShelf(true);
+    }
+
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (overviewVisible)
@@ -629,6 +648,10 @@ PanelWindow {
     onOverviewVisualReadyChanged: {
         if (overviewVisualReady) beginOverviewOpening();
     }
+    onOverviewContentVisibleChanged: {
+        if (overviewContentVisible && monitorFocused)
+            overviewFocusTimer.restart();
+    }
     onMonitorFocusedChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (connectivityPromptActive && monitorFocused) connectivityPromptFocusTimer.restart();
@@ -638,7 +661,7 @@ PanelWindow {
         id: overviewFocusTimer
         interval: 0
         repeat: false
-        onTriggered: islandContainer.forceActiveFocus()
+        onTriggered: root.focusOverview()
     }
 
     Timer {
@@ -652,9 +675,7 @@ PanelWindow {
         id: expandedPlayerFocusTimer
         interval: 0
         repeat: false
-        onTriggered: {
-            islandContainer.forceActiveFocus();
-        }
+        onTriggered: root.focusExpandedPlayer()
     }
 
     Timer {
@@ -677,10 +698,56 @@ PanelWindow {
             wallpaperPickerLoader.item.grabKeyboardFocus();
     }
 
+    function focusOverview() {
+        islandContainer.forceActiveFocus();
+        const view = islandContainer.overviewView;
+        if (view && view.grabKeyboardFocus)
+            view.grabKeyboardFocus();
+    }
+
+    function focusExpandedPlayer() {
+        islandContainer.requestExpandedPlayerKeyboardFocus();
+        if (expandedPlayerLoader.item && expandedPlayerLoader.item.grabKeyboardFocus)
+            expandedPlayerLoader.item.grabKeyboardFocus();
+    }
+
     function focusApplicationLauncher() {
         islandContainer.forceActiveFocus();
         if (applicationLauncherLoader.item && applicationLauncherLoader.item.grabKeyboardFocus)
             applicationLauncherLoader.item.grabKeyboardFocus();
+    }
+
+    function focusFileShelf() {
+        islandContainer.forceActiveFocus();
+        if (fileShelfLoader.item && fileShelfLoader.item.grabKeyboardFocus)
+            fileShelfLoader.item.grabKeyboardFocus();
+    }
+
+    function dragCarriesFiles(dragEvent) {
+        if (!dragEvent)
+            return false;
+        if (dragEvent.hasUrls)
+            return true;
+
+        const formats = dragEvent.formats || [];
+        return formats.indexOf("text/uri-list") >= 0
+            || formats.indexOf("x-special/gnome-copied-files") >= 0;
+    }
+
+    function addFilesFromDrop(dropEvent) {
+        if (!dropEvent)
+            return 0;
+
+        let added = 0;
+        if (dropEvent.hasUrls)
+            added += FileShelf.addUrls(dropEvent.urls);
+
+        const formats = dropEvent.formats || [];
+        if (added === 0 && formats.indexOf("text/uri-list") >= 0)
+            added += FileShelf.addUriList(dropEvent.getDataAsString("text/uri-list"));
+        if (added === 0 && formats.indexOf("x-special/gnome-copied-files") >= 0)
+            added += FileShelf.addUriList(dropEvent.getDataAsString("x-special/gnome-copied-files"));
+        return added;
     }
 
     Timer {
@@ -742,8 +809,10 @@ PanelWindow {
     FocusScope {
         id: islandContainer
         anchors.fill: parent
-        focus: wallpaperPickerLayerVisible
+        focus: controlCenterLayerVisible
+            || wallpaperPickerLayerVisible
             || applicationLauncherLayerVisible
+            || fileShelfLayerVisible
             || expandedPlayerKeyboardFocusRequested
             || (root.monitorFocused && (root.overviewVisible || root.connectivityPromptActive))
 
@@ -787,6 +856,7 @@ PanelWindow {
         property bool timerCompletionAnimating: false
         property real timerCompletionPulse: 0
         property real timerCompletionFlash: 0
+        property bool fileShelfOpenedManually: false
         readonly property int defaultAutoHideInterval: 1250
         readonly property int notificationAutoHideInterval: 4200
         readonly property int bluetoothExpandedAutoHideInterval: 2500
@@ -797,12 +867,18 @@ PanelWindow {
         readonly property bool timerBubbleWanted: (timerActive && timerRemainingSeconds > 0 || timerCompletionAnimating)
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property bool fileShelfBubbleWanted: FileShelf.count > 0
+            && !root.overviewVisible
+            && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
+        readonly property bool fileShelfCanAutoOpen: !root.overviewVisible
+            && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property bool blocksTransientSplit: islandState === "expanded"
             || islandState === "bluetooth_expanded"
             || islandState === "control_center"
             || islandState === "notification"
             || islandState === "wallpaper_picker"
             || islandState === "application_launcher"
+            || islandState === "file_shelf"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
@@ -846,6 +922,7 @@ PanelWindow {
         readonly property bool notificationCenterLayerVisible: !root.overviewVisible && islandState === "notification_center"
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
+        readonly property bool fileShelfLayerVisible: !root.overviewVisible && islandState === "file_shelf"
         readonly property var activePlayer: mediaController.activePlayer
         readonly property string lyricsDisplayText: mediaController.displayText
         readonly property string currentTrack: mediaController.currentTrack
@@ -861,7 +938,9 @@ PanelWindow {
             : null
 
         onExpandedLayerVisibleChanged: {
-            if (!expandedLayerVisible)
+            if (expandedLayerVisible)
+                requestExpandedPlayerKeyboardFocus();
+            else
                 expandedPlayerKeyboardFocusRequested = false;
         }
 
@@ -872,6 +951,11 @@ PanelWindow {
                 else
                     root.closeAllConnectivityDetails();
             }
+        }
+
+        onFileShelfLayerVisibleChanged: {
+            if (!fileShelfLayerVisible)
+                fileShelfOpenedManually = false;
         }
 
         onCustomLeftItemsChanged: {
@@ -958,6 +1042,26 @@ PanelWindow {
         }
 
         Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                if (root.overviewVisible) {
+                    root.closeOverviewEverywhere();
+                    event.accepted = true;
+                    return;
+                }
+
+                if (islandContainer.expandedLayerVisible) {
+                    islandContainer.smartRestoreState();
+                    event.accepted = true;
+                    return;
+                }
+
+                if (islandContainer.controlCenterLayerVisible) {
+                    islandContainer.smartRestoreState();
+                    event.accepted = true;
+                    return;
+                }
+            }
+
             if (!root.overviewVisible) return;
 
             const view = islandContainer.overviewView;
@@ -1391,7 +1495,8 @@ PanelWindow {
         }
 
         function showNotificationCapsule(appName, summary, body) {
-            if (root.overviewVisible || islandState === "control_center" || islandState === "expanded") return;
+            if (root.overviewVisible || islandState === "control_center"
+                    || islandState === "expanded" || islandState === "file_shelf") return;
 
             const cleanedAppName = cleanNotificationText(appName);
             const cleanedSummary = cleanNotificationText(summary);
@@ -1498,7 +1603,8 @@ PanelWindow {
         }
 
         function showBluetoothExpanded(device) {
-            if (!device || root.overviewVisible || islandState === "control_center" || islandState === "notification")
+            if (!device || root.overviewVisible || islandState === "control_center"
+                    || islandState === "notification" || islandState === "file_shelf")
                 return;
 
             cancelSideSwipeSettle();
@@ -1546,6 +1652,28 @@ PanelWindow {
             islandState = "application_launcher";
             mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
             stopAutoHideTimer();
+        }
+
+        function showFileShelf(manuallyOpened) {
+            const manual = manuallyOpened === true;
+            if (islandState === "file_shelf") {
+                if (manual)
+                    fileShelfOpenedManually = true;
+                return;
+            }
+
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            fileShelfOpenedManually = manual;
+            islandState = "file_shelf";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            stopAutoHideTimer();
+        }
+
+        function closeAutoOpenedFileShelf() {
+            if (islandState === "file_shelf" && !fileShelfOpenedManually)
+                smartRestoreState();
         }
 
         function showCustomCapsule() {
@@ -1671,7 +1799,8 @@ PanelWindow {
             if (currentTrack !== ""
                     && islandState !== "control_center"
                     && islandState !== "notification"
-                    && islandState !== "bluetooth_expanded") {
+                    && islandState !== "bluetooth_expanded"
+                    && islandState !== "file_shelf") {
                 if (root.autoHideSuppressesTransientReveal) return;
                 if (islandState === "expanded" && !expandedByPlayerAutoOpen) return;
                 showExpandedPlayer(true);
@@ -1720,6 +1849,7 @@ PanelWindow {
                     return 410;
                 case "wallpaper_picker":
                 case "application_launcher":
+                case "file_shelf":
                     return 1100;
                 case "expanded":
                 case "bluetooth_expanded":
@@ -1744,6 +1874,7 @@ PanelWindow {
                     return notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 200;
                 case "wallpaper_picker":
                 case "application_launcher":
+                case "file_shelf":
                     return 260;
                 case "expanded":
                 case "bluetooth_expanded":
@@ -1766,6 +1897,7 @@ PanelWindow {
                     return mainCapsule.targetHeight * 36 / 165;
                 case "wallpaper_picker":
                 case "application_launcher":
+                case "file_shelf":
                     return 34;
                 case "expanded":
                 case "bluetooth_expanded":
@@ -1809,7 +1941,8 @@ PanelWindow {
 
             Behavior on displayedWidth  {
                 NumberAnimation {
-                    duration: capsuleMouseArea.sideSwipeInteractive ? 0 : mainCapsule.morphDuration
+                    duration: capsuleMouseArea.sideSwipeInteractive
+                        || islandContainer.fileShelfLayerVisible ? 0 : mainCapsule.morphDuration
                     easing.type: Easing.OutQuint
                 }
             }
@@ -1817,7 +1950,7 @@ PanelWindow {
                 enabled: !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
 
                 NumberAnimation {
-                    duration: mainCapsule.morphDuration
+                    duration: islandContainer.fileShelfLayerVisible ? 0 : mainCapsule.morphDuration
                     easing.type: Easing.OutQuint
                 }
             }
@@ -2239,6 +2372,7 @@ PanelWindow {
                         item.openTimerPage();
                         islandContainer.openTimerPageWhenExpanded = false;
                     }
+                    root.focusExpandedPlayer();
                 }
 
                 sourceComponent: Component {
@@ -2261,6 +2395,7 @@ PanelWindow {
                         showCondition: islandContainer.expandedLayerVisible
                         onControlPressed: islandContainer.suppressCapsuleClick()
                         onBackgroundClicked: islandContainer.smartRestoreState()
+                        onCloseRequested: islandContainer.smartRestoreState()
                         onKeyboardFocusRequested: islandContainer.requestExpandedPlayerKeyboardFocus()
                         onKeyboardFocusReleased: islandContainer.releaseExpandedPlayerKeyboardFocus()
                         onPreviousRequested: mediaController.previous()
@@ -2427,6 +2562,71 @@ PanelWindow {
             }
 
             Loader {
+                id: fileShelfLoader
+                anchors.fill: parent
+                active: islandContainer.fileShelfLayerVisible
+                asynchronous: false
+                visible: islandContainer.fileShelfLayerVisible
+                onLoaded: {
+                    if (islandContainer.fileShelfOpenedManually)
+                        root.focusFileShelf();
+                }
+
+                sourceComponent: Component {
+                    FileShelfLayer {
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        showCondition: islandContainer.fileShelfLayerVisible
+                        dropPreviewOnly: !islandContainer.fileShelfOpenedManually
+                        onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            DropArea {
+                id: islandFileDropArea
+                z: 10000
+                anchors.fill: parent
+                enabled: islandContainer.fileShelfLayerVisible
+                    || islandContainer.fileShelfCanAutoOpen
+
+                onEntered: drag => {
+                    if (!root.dragCarriesFiles(drag)) {
+                        drag.accepted = false;
+                        return;
+                    }
+
+                    drag.accept(Qt.CopyAction);
+                    if (!islandContainer.fileShelfLayerVisible)
+                        islandContainer.showFileShelf(false);
+                    root.showAutoHiddenIsland("state");
+                }
+
+                onExited: islandContainer.closeAutoOpenedFileShelf()
+
+                onDropped: drop => {
+                    if (!root.dragCarriesFiles(drop)) {
+                        drop.accepted = false;
+                        return;
+                    }
+
+                    root.addFilesFromDrop(drop);
+                    drop.accept(Qt.CopyAction);
+                    islandContainer.closeAutoOpenedFileShelf();
+                }
+            }
+
+            Rectangle {
+                z: 9999
+                anchors.fill: parent
+                radius: mainCapsule.radius
+                color: StyleTokens.clearBlack
+                border.width: islandFileDropArea.containsDrag ? 2 : 0
+                border.color: StyleTokens.accent
+                visible: islandFileDropArea.containsDrag
+            }
+
+            Loader {
                 id: overviewLoader
 
                 anchors.fill: parent
@@ -2437,6 +2637,7 @@ PanelWindow {
                 onStatusChanged: {
                     if (status === Loader.Ready && root.overviewPreparing) {
                         root.beginOverviewOpening();
+                        root.focusOverview();
                     }
                 }
 
@@ -2454,6 +2655,78 @@ PanelWindow {
                 }
             }
 
+        }
+
+        Item {
+            id: fileShelfBubble
+
+            readonly property int bubbleSize: 36
+
+            width: bubbleSize
+            height: bubbleSize
+            x: mainCapsule.x - width - 8
+            y: mainCapsule.y + mainCapsule.height / 2 - height / 2
+            z: 6
+            visible: islandContainer.fileShelfBubbleWanted
+            opacity: root.autoHideProgress
+            scale: 0.96 + root.autoHideProgress * 0.04
+            transformOrigin: Item.Center
+
+            Behavior on opacity {
+                NumberAnimation { duration: StyleTokens.durationFast }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: StyleTokens.black
+                border.width: 1
+                border.color: StyleTokens.inputBorder
+
+                Text {
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: -1
+                    text: "\uf08d"
+                    color: StyleTokens.textPrimary
+                    font.family: root.iconFontFamily
+                    font.pixelSize: 13
+                    rotation: -18
+                }
+
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.rightMargin: -2
+                    anchors.bottomMargin: -2
+                    width: Math.max(17, countText.implicitWidth + 8)
+                    height: 17
+                    radius: height / 2
+                    color: StyleTokens.accent
+                    border.width: 2
+                    border.color: StyleTokens.black
+
+                    Text {
+                        id: countText
+                        anchors.centerIn: parent
+                        text: FileShelf.count > 99 ? "99+" : String(FileShelf.count)
+                        color: StyleTokens.white
+                        font.family: root.textFontFamily
+                        font.pixelSize: 9
+                        font.weight: Font.DemiBold
+                    }
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                enabled: fileShelfBubble.visible && root.autoHideProgress > 0.5
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    islandContainer.showFileShelf(true);
+                    root.showAutoHiddenIsland("state");
+                }
+            }
         }
 
         Item {

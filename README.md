@@ -92,6 +92,7 @@ It's built with Quickshell, QML, and C++/Qt 6. Most of the effort went into maki
 - Timer
 - Lyrics displayer
 - Application launcher
+- File shelf with cross-application drag and drop
 - Wallpaper switcher
 - Workspace overview
 - Custom page

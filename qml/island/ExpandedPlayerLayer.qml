@@ -8,6 +8,7 @@ Item {
 
     signal controlPressed()
     signal backgroundClicked()
+    signal closeRequested()
     signal keyboardFocusRequested()
     signal keyboardFocusReleased()
     signal previousRequested()
@@ -104,13 +105,15 @@ Item {
     }
 
     function updateKeyboardFocusForPage() {
-        if (showCondition && currentPage === 1)
+        if (showCondition)
             keyboardFocusRequested();
         else
             keyboardFocusReleased();
     }
 
     function grabKeyboardFocus() {
+        root.focus = true;
+        root.forceActiveFocus();
         if (currentPage === 1 && timerPage.grabKeyboardFocus)
             timerPage.grabKeyboardFocus();
     }
@@ -120,7 +123,13 @@ Item {
     }
 
     anchors.fill: parent
+    focus: showCondition
     opacity: showCondition ? 1 : 0
+
+    Keys.onEscapePressed: event => {
+        root.closeRequested();
+        event.accepted = true;
+    }
 
     onShowConditionChanged: {
         if (!showCondition) {

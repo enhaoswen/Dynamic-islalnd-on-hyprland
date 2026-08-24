@@ -250,6 +250,10 @@ Scope {
         function toggleApplicationLauncher() {
             shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
         }
+
+        function toggleFileShelf() {
+            shellRoot.forFocusedWindow((window) => window.toggleFileShelfWindow());
+        }
     }
 
     Connections {
