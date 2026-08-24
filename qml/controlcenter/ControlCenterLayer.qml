@@ -54,6 +54,8 @@ Item {
     property bool sliderIntroPending: false
     property bool wifiPanelOpen: false
     property bool bluetoothPanelOpen: false
+    property bool powerPanelOpen: false
+    property bool powerViewActive: false3
     property bool batteryDrawerOpen: false
     property bool batteryDrawerDragging: false
     property real batteryDrawerProgress: 0
@@ -112,6 +114,7 @@ Item {
     readonly property string wifiGlyph: ""
     readonly property string bluetoothGlyph: ""
     readonly property string chargingIconGlyph: "\uf0e7"
+    readonly property string powerIconGlyph: "\uf011"
     readonly property string brightnessIconGlyph: "\u{F00DF}"
     readonly property string volumeIconGlyph: "\u{F057E}"
     readonly property string nightLightGlyph: "\uf186"
@@ -465,6 +468,7 @@ Item {
     function isConnectivityPanelOpen(kind) {
         if (kind === "wifi") return wifiPanelOpen;
         if (kind === "bluetooth") return bluetoothPanelOpen;
+        if (kind === "power") return powerPanelOpen;
         return false;
     }
 
@@ -511,7 +515,12 @@ Item {
                 bluetoothPendingSecretValue = "";
                 clearBluetoothMessages();
             }
-        } else {
+        } 
+        else if (kind === "power") {
+            changed = powerPanelOpen !== nextOpen;
+            powerPanelOpen = nextOpen;
+        }
+        else {
             return;
         }
 
@@ -521,6 +530,23 @@ Item {
 
     function toggleConnectivityOverlay(kind) {
         setConnectivityPanelOpen(kind, !isConnectivityPanelOpen(kind));
+    }
+
+    function triggerShutdown() {
+        if (!shutdownProcess.running)
+            shutdownProcess.running = true;
+    }
+    function triggerRestart() {
+        if (!restartProcess.running)
+            restartProcess.running = true;
+    }
+    function triggerSleep() {
+        if (!sleepProcess.running)
+            sleepProcess.running = true;
+    }
+    function triggerLock() {
+        if (!lockProcess.running)
+            lockProcess.running = true;
     }
 
     function closeConnectivityPanels(emitSignals) {
@@ -1144,6 +1170,55 @@ Item {
         }
     }
 
+    Process {
+        id: shutdownProcess
+        command: ["systemctl", "poweroff"]
+        running: false
+        onExited: function(exitCode) {
+            if (exitCode !== 0)
+                controlCenter.requestNotification("Power", "Shutdown failed",
+                    "Could not power off via systemctl.");
+        }
+    }
+    Process {
+        id: restartProcess
+        command: ["systemctl", "reboot"]
+        running: false
+        onExited: function(exitCode) {
+            if (exitCode !== 0)
+                controlCenter.requestNotification("Power", "Restart failed",
+                    "Could not reboot via systemctl.");
+        }
+    }
+    Process {
+        id: sleepProcess
+        command: ["systemctl", "suspend"]
+        running: false
+        onExited: function(exitCode) {
+            if (exitCode !== 0)
+                controlCenter.requestNotification("Power", "Sleep failed",
+                    "Could not suspend via systemctl.");
+        }
+    }
+    Process {
+        id: lockProcess
+        command: [
+            "sh",
+            "-c",
+            "if command -v hyprlock >/dev/null 2>&1; then hyprlock; "
+                + "elif command -v swaylock >/dev/null 2>&1; then swaylock; "
+                + "elif command -v i3lock >/dev/null 2>&1; then i3lock; "
+                + "elif command -v loginctl >/dev/null 2>&1; then loginctl lock-session; "
+                + "else exit 127; fi"
+        ]
+        running: false
+        onExited: function(exitCode) {
+            if (exitCode === 127)
+                controlCenter.requestNotification("Power", "Lock unavailable",
+                    "Install hyprlock, swaylock, or i3lock to enable screen locking.");
+        }
+    }
+
     Connections {
         target: SystemServices
 
@@ -1378,8 +1453,14 @@ Item {
     }
 
     Column {
+        id: mainContent
         anchors.fill: parent
+        visible: !controlCenter.powerViewActive
         spacing: 12
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
 
         Item {
             width: parent.width
@@ -1482,6 +1563,30 @@ Item {
                         color: StyleTokens.textSecondary
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+                Item {
+                    width: 24
+                    height: 24
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 8
+                        color: StyleTokens.transparent
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: controlCenter.powerIconGlyph
+                        color: controlCenter.powerViewActive ? StyleTokens.white : StyleTokens.textSecondary
+                        font.pixelSize: 16
+                        font.family: iconFontFamily
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: controlCenter.powerViewActive = !controlCenter.powerViewActive
                     }
                 }
             }
@@ -2352,5 +2457,72 @@ Item {
             onCancelRequested: SystemServices.requestVolume()
         }
     }
+    Item {
+        anchors.fill: parent
+        visible: controlCenter.powerViewActive
 
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
+
+        Rectangle {
+            width: 32
+            height: 32
+            radius: 12
+            anchors.top: parent.top
+            anchors.left: parent.left
+            color: backButtonMouse.containsPress ? StyleTokens.secondaryButton : StyleTokens.transparent
+
+            Text {
+                anchors.centerIn: parent
+                text: "\uf060"
+                color: StyleTokens.textPrimary
+                font.pixelSize: 14
+                font.family: controlCenter.iconFontFamily
+            }
+
+            MouseArea {
+                id: backButtonMouse
+                anchors.fill: parent
+                onClicked: controlCenter.powerViewActive = false
+            }
+        }
+
+        Row {
+            anchors.centerIn: parent
+            spacing: 16
+
+            Repeater {
+                model: [
+                    { glyph: "\uf023", action: "triggerLock" },
+                    { glyph: "\uf186", action: "triggerSleep" },
+                    { glyph: "\uf021", action: "triggerRestart" },
+                    { glyph: "\uf011", action: "triggerShutdown" }
+                ]
+
+                delegate: Rectangle {
+                    width: 56
+                    height: 56
+                    radius: 16
+                    color: StyleTokens.secondaryButton
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.glyph
+                        color: StyleTokens.textPrimary
+                        font.pixelSize: 20
+                        font.family: controlCenter.iconFontFamily
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (controlCenter[modelData.action])
+                                controlCenter[modelData.action]();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
