@@ -1,5 +1,6 @@
 import QtQuick
 import IslandBackend
+import Quickshell.Widgets
 
 Item {
     id: root
@@ -28,6 +29,9 @@ Item {
     property int textPixelSize: userConfig.bodyFontSize
     property int iconPixelSize: userConfig.iconFontSize
     property int iconBoxSize: 18
+    property int albumCoverSize: 28
+    property int albumCoverRadius: 7
+    property int maximumMediaTextWidth: 180
     property int batteryIconWidth: 37
     property int batteryIconHeight: 17
     property int batteryFontSize: 13
@@ -98,12 +102,19 @@ Item {
                 readonly property bool hasIcon: modelData.icon !== ""
                 readonly property bool isCava: modelData.kind === "cava"
                 readonly property bool isBattery: modelData.kind === "battery"
+                readonly property bool isAlbumArt: modelData.kind === "albumArt"
+                readonly property bool isMediaText: modelData.kind === "trackName"
                 readonly property bool hasLeadingVisual: hasIcon || isBattery
+                readonly property real boundedTextWidth: isMediaText
+                    ? Math.min(valueText.implicitWidth, root.maximumMediaTextWidth)
+                    : valueText.implicitWidth
                 implicitWidth: isCava
                     ? cavaBars.implicitWidth
+                    : isAlbumArt
+                      ? root.albumCoverSize
                     : isBattery
                       ? root.batteryIconWidth
-                      : leadingVisual.width + (hasLeadingVisual ? root.iconSpacing : 0) + valueText.implicitWidth
+                      : leadingVisual.width + (hasLeadingVisual ? root.iconSpacing : 0) + boundedTextWidth
                 implicitHeight: root.height
                 width: implicitWidth
                 height: implicitHeight
@@ -116,8 +127,59 @@ Item {
                 }
 
                 Item {
+                    visible: parent.isAlbumArt
+                    anchors.centerIn: parent
+                    width: root.albumCoverSize
+                    height: root.albumCoverSize
+
+                    ClippingRectangle {
+                        anchors.fill: parent
+                        radius: root.albumCoverRadius
+                        color: "#73594f"
+                        antialiasing: true
+
+                        Rectangle {
+                            anchors.fill: parent
+                            gradient: Gradient {
+                                GradientStop { position: 0; color: "#a56e5a" }
+                                GradientStop { position: 1; color: "#493b43" }
+                            }
+                        }
+
+                        Image {
+                            anchors.fill: parent
+                            source: modelData.artUrl || ""
+                            fillMode: Image.PreserveAspectCrop
+                            visible: source.toString() !== ""
+                            sourceSize: Qt.size(root.albumCoverSize * 2, root.albumCoverSize * 2)
+                            smooth: true
+                        }
+
+                        Rectangle {
+                            visible: String(modelData.artUrl || "") === ""
+                            width: 9
+                            height: 2
+                            anchors.left: parent.left
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 5
+                            anchors.bottomMargin: 5
+                            radius: 1
+                            color: "#b8ffffff"
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: "#2effffff"
+                        }
+                    }
+                }
+
+                Item {
                     id: leadingVisual
-                    visible: !parent.isCava && parent.hasLeadingVisual
+                    visible: !parent.isCava && !parent.isAlbumArt && parent.hasLeadingVisual
                     width: parent.isBattery ? root.batteryIconWidth : (parent.hasIcon ? root.iconBoxSize : 0)
                     height: parent.isBattery ? Math.max(root.batteryIconHeight, valueText.implicitHeight) : root.iconBoxSize
                     anchors.left: parent.left
@@ -247,16 +309,18 @@ Item {
 
                 Text {
                     id: valueText
-                    visible: !parent.isCava && !parent.isBattery
+                    visible: !parent.isCava && !parent.isBattery && !parent.isAlbumArt
                     anchors.left: leadingVisual.right
                     anchors.leftMargin: parent.hasLeadingVisual && !parent.isBattery ? root.iconSpacing : 0
                     anchors.verticalCenter: parent.verticalCenter
+                    width: parent.boundedTextWidth
                     text: modelData.text || ""
                     color: "white"
                     font.pixelSize: root.textPixelSize
                     font.family: root.textFontFamily
                     font.weight: Font.Bold
                     font.letterSpacing: -0.15
+                    elide: Text.ElideRight
                     wrapMode: Text.NoWrap
                 }
             }

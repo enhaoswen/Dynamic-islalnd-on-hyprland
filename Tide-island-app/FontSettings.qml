@@ -124,7 +124,7 @@ PagePanel {
                         title: "Text Font Family"
                         description: "Body and paragraph text font"
                         keyName: "textFontFamily"
-                        fallbackText: "Inter Display"
+                        fallbackText: "Sans Serif"
                         width: parent.width
                     }
 
@@ -134,7 +134,7 @@ PagePanel {
                         title: "Hero Font Family"
                         description: "Heading and hero text font"
                         keyName: "heroFontFamily"
-                        fallbackText: "Inter Display"
+                        fallbackText: "Sans Serif"
                         width: parent.width
                     }
 
@@ -144,7 +144,7 @@ PagePanel {
                         title: "Time Font Family"
                         description: "Clock and time display font"
                         keyName: "timeFontFamily"
-                        fallbackText: "Inter Display"
+                        fallbackText: "Sans Serif"
                         width: parent.width
                     }
 

@@ -40,6 +40,8 @@ private slots:
     void hyprlandDefaultsIncludeWorkspaceOverview();
     void defaultsCycleIslandViewsWithArrowKeys();
     void legacyArrowShortcutsMigrateToBidirectionalCycle();
+    void defaultsIncludeTimer();
+    void defaultsIncludePowerMenu();
     void defaultsIncludeNotificationHistory();
     void defaultsIncludeApplicationLauncher();
     void defaultsIncludeFileShelf();
@@ -125,6 +127,48 @@ void ShortcutConfigTests::defaultsIncludeFileShelf()
     }
 
     QVERIFY(foundFileShelf);
+}
+
+void ShortcutConfigTests::defaultsIncludeTimer()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toLocal8Bit());
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    Backend backend;
+    bool foundTimer = false;
+    for (const QVariant &value : backend.shortcutBindings()) {
+        const QVariantMap binding = value.toMap();
+        foundTimer = foundTimer
+            || (binding.value(QStringLiteral("mods")).toString() == QStringLiteral("SUPER")
+                && binding.value(QStringLiteral("key")).toString() == QStringLiteral("T")
+                && binding.value(QStringLiteral("target")).toString() == QStringLiteral("tide")
+                && binding.value(QStringLiteral("method")).toString() == QStringLiteral("showTimer"));
+    }
+
+    QVERIFY(foundTimer);
+}
+
+void ShortcutConfigTests::defaultsIncludePowerMenu()
+{
+    QTemporaryDir configHome;
+    QVERIFY(configHome.isValid());
+    qputenv("XDG_CONFIG_HOME", configHome.path().toLocal8Bit());
+    qputenv("TIDE_ISLAND_COMPOSITOR", "hyprland");
+
+    Backend backend;
+    bool foundPowerMenu = false;
+    for (const QVariant &value : backend.shortcutBindings()) {
+        const QVariantMap binding = value.toMap();
+        foundPowerMenu = foundPowerMenu
+            || (binding.value(QStringLiteral("mods")).toString() == QStringLiteral("SUPER")
+                && binding.value(QStringLiteral("key")).toString() == QStringLiteral("P")
+                && binding.value(QStringLiteral("target")).toString() == QStringLiteral("tide")
+                && binding.value(QStringLiteral("method")).toString() == QStringLiteral("togglePowerMenu"));
+    }
+
+    QVERIFY(foundPowerMenu);
 }
 
 void ShortcutConfigTests::legacyArrowShortcutsMigrateToBidirectionalCycle()
@@ -374,7 +418,7 @@ void ShortcutConfigTests::niriDefaultsExcludeWorkspaceOverview()
     Backend backend;
     QVERIFY(!backend.supportsTideWorkspaceOverview());
     QVERIFY(backend.supportsNiriShortcutSnippets());
-    QCOMPARE(backend.shortcutBindings().size(), 10);
+    QCOMPARE(backend.shortcutBindings().size(), 12);
 
     for (const QVariant &value : backend.shortcutBindings()) {
         const QVariantMap binding = value.toMap();
@@ -407,6 +451,10 @@ void ShortcutConfigTests::niriConfigUsesNiriKeyNames()
     QVERIFY(config.contains(QStringLiteral("\"tide\" \"toggleFileShelf\"")));
     QVERIFY(config.contains(QStringLiteral("Super+N")));
     QVERIFY(config.contains(QStringLiteral("\"tide\" \"toggleNotificationCenter\"")));
+    QVERIFY(config.contains(QStringLiteral("Super+T")));
+    QVERIFY(config.contains(QStringLiteral("\"tide\" \"showTimer\"")));
+    QVERIFY(config.contains(QStringLiteral("Super+P")));
+    QVERIFY(config.contains(QStringLiteral("\"tide\" \"togglePowerMenu\"")));
     QVERIFY(!config.contains(QStringLiteral("overview")));
     QVERIFY(!config.contains(QStringLiteral("Super+Tab")));
     QVERIFY(!config.contains(QStringLiteral("SUPER+TAB")));

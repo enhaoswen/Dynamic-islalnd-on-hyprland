@@ -607,11 +607,31 @@ PanelWindow {
             islandContainer.showExpandedPlayer(false);
     }
 
+    function showTimerWindow() {
+        islandContainer.showExpandedTimerPage();
+    }
+
     function toggleControlCenterWindow() {
         if (islandContainer.islandState === "control_center")
             islandContainer.smartRestoreState();
-        else
+        else {
             islandContainer.showControlCenter();
+            if (controlCenterLoader.item)
+                controlCenterLoader.item.powerViewActive = false;
+        }
+    }
+
+    function togglePowerMenuWindow() {
+        if (islandContainer.islandState === "control_center"
+                && controlCenterLoader.item
+                && controlCenterLoader.item.powerViewActive) {
+            islandContainer.smartRestoreState();
+            return;
+        }
+
+        islandContainer.showControlCenter();
+        if (controlCenterLoader.item)
+            controlCenterLoader.item.powerViewActive = true;
     }
 
     function toggleNotificationCenterWindow() {
@@ -1028,6 +1048,8 @@ PanelWindow {
             configuredLeftSwipeItems: userConfig.dynamicIslandLeftSwipeItems
             timeText: timeObj.currentTime
             dateText: timeObj.currentDateLabel
+            currentTrack: islandContainer.currentTrack
+            currentArtUrl: islandContainer.currentArtUrl
             currentWorkspace: islandContainer.currentWs
             customSwipeActive: customSwipeLoader.active
             lyricsCavaActive: islandContainer.lyricsSwipeVisible
@@ -1974,8 +1996,7 @@ PanelWindow {
 
             Behavior on displayedWidth  {
                 NumberAnimation {
-                    duration: capsuleMouseArea.sideSwipeInteractive
-                        || islandContainer.fileShelfLayerVisible ? 0 : mainCapsule.morphDuration
+                    duration: capsuleMouseArea.sideSwipeInteractive ? 0 : mainCapsule.morphDuration
                     easing.type: Easing.OutQuint
                 }
             }
@@ -1983,7 +2004,7 @@ PanelWindow {
                 enabled: !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
 
                 NumberAnimation {
-                    duration: islandContainer.fileShelfLayerVisible ? 0 : mainCapsule.morphDuration
+                    duration: mainCapsule.morphDuration
                     easing.type: Easing.OutQuint
                 }
             }

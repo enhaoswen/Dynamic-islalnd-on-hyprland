@@ -17,7 +17,18 @@
 namespace {
 QVariantList defaultDynamicIslandLeftSwipeItems()
 {
-    return {QStringLiteral("cava"), QStringLiteral("battery")};
+    return {
+        QStringLiteral("time"),
+        QStringLiteral("date"),
+        QStringLiteral("workspace"),
+        QStringLiteral("storage"),
+        QStringLiteral("battery"),
+        QStringLiteral("cpu"),
+        QStringLiteral("ram"),
+        QStringLiteral("cava"),
+        QStringLiteral("albumcover"),
+        QStringLiteral("trackname"),
+    };
 }
 
 QByteArray stripJsonComments(const QByteArray &input)
@@ -455,9 +466,9 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_wallpaperTransitionWave, jsonString(configObject, QLatin1String("wallpaperTransitionWave"), QStringLiteral("20,20")), &UserConfigBackend::wallpaperTransitionWaveChanged);
     updateField(this, m_wallpaperTransitionInvertY, jsonBool(configObject, QLatin1String("wallpaperTransitionInvertY"), false), &UserConfigBackend::wallpaperTransitionInvertYChanged);
     updateField(this, m_iconFontFamily, jsonString(configObject, QLatin1String("iconFontFamily"), QStringLiteral("JetBrainsMono Nerd Font")), &UserConfigBackend::iconFontFamilyChanged);
-    updateField(this, m_textFontFamily, jsonString(configObject, QLatin1String("textFontFamily"), QStringLiteral("Inter Display")), &UserConfigBackend::textFontFamilyChanged);
-    updateField(this, m_heroFontFamily, jsonString(configObject, QLatin1String("heroFontFamily"), QStringLiteral("Inter Display")), &UserConfigBackend::heroFontFamilyChanged);
-    updateField(this, m_timeFontFamily, jsonString(configObject, QLatin1String("timeFontFamily"), QStringLiteral("Inter Display")), &UserConfigBackend::timeFontFamilyChanged);
+    updateField(this, m_textFontFamily, jsonString(configObject, QLatin1String("textFontFamily"), QStringLiteral("Sans Serif")), &UserConfigBackend::textFontFamilyChanged);
+    updateField(this, m_heroFontFamily, jsonString(configObject, QLatin1String("heroFontFamily"), QStringLiteral("Sans Serif")), &UserConfigBackend::heroFontFamilyChanged);
+    updateField(this, m_timeFontFamily, jsonString(configObject, QLatin1String("timeFontFamily"), QStringLiteral("Sans Serif")), &UserConfigBackend::timeFontFamilyChanged);
     const QString configuredClockFormat = jsonString(configObject, QLatin1String("clockFormat"), QStringLiteral("12"));
     updateField(this, m_clockFormat, configuredClockFormat == QLatin1String("24") ? QStringLiteral("24") : QStringLiteral("12"), &UserConfigBackend::clockFormatChanged);
     updateField(this, m_tlpSudoPassword, jsonString(configObject, QLatin1String("tlpSudoPassword"), m_defaultTlpSudoPassword), &UserConfigBackend::tlpSudoPasswordChanged);

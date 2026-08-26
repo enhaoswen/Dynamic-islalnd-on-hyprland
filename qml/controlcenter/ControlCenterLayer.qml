@@ -55,7 +55,7 @@ Item {
     property bool wifiPanelOpen: false
     property bool bluetoothPanelOpen: false
     property bool powerPanelOpen: false
-    property bool powerViewActive: false3
+    property bool powerViewActive: false
     property bool batteryDrawerOpen: false
     property bool batteryDrawerDragging: false
     property real batteryDrawerProgress: 0
@@ -114,7 +114,6 @@ Item {
     readonly property string wifiGlyph: ""
     readonly property string bluetoothGlyph: ""
     readonly property string chargingIconGlyph: "\uf0e7"
-    readonly property string powerIconGlyph: "\uf011"
     readonly property string brightnessIconGlyph: "\u{F00DF}"
     readonly property string volumeIconGlyph: "\u{F057E}"
     readonly property string nightLightGlyph: "\uf186"
@@ -1565,30 +1564,6 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
-                Item {
-                    width: 24
-                    height: 24
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 8
-                        color: StyleTokens.transparent
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: controlCenter.powerIconGlyph
-                        color: controlCenter.powerViewActive ? StyleTokens.white : StyleTokens.textSecondary
-                        font.pixelSize: 16
-                        font.family: iconFontFamily
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: controlCenter.powerViewActive = !controlCenter.powerViewActive
-                    }
-                }
             }
         }
 
@@ -2465,32 +2440,9 @@ Item {
             NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
         }
 
-        Rectangle {
-            width: 32
-            height: 32
-            radius: 12
-            anchors.top: parent.top
-            anchors.left: parent.left
-            color: backButtonMouse.containsPress ? StyleTokens.secondaryButton : StyleTokens.transparent
-
-            Text {
-                anchors.centerIn: parent
-                text: "\uf060"
-                color: StyleTokens.textPrimary
-                font.pixelSize: 14
-                font.family: controlCenter.iconFontFamily
-            }
-
-            MouseArea {
-                id: backButtonMouse
-                anchors.fill: parent
-                onClicked: controlCenter.powerViewActive = false
-            }
-        }
-
         Row {
             anchors.centerIn: parent
-            spacing: 16
+            spacing: 26
 
             Repeater {
                 model: [
@@ -2500,17 +2452,15 @@ Item {
                     { glyph: "\uf011", action: "triggerShutdown" }
                 ]
 
-                delegate: Rectangle {
+                delegate: Item {
                     width: 56
                     height: 56
-                    radius: 16
-                    color: StyleTokens.secondaryButton
 
                     Text {
                         anchors.centerIn: parent
                         text: modelData.glyph
                         color: StyleTokens.textPrimary
-                        font.pixelSize: 20
+                        font.pixelSize: 38
                         font.family: controlCenter.iconFontFamily
                     }
 

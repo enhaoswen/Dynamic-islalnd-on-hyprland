@@ -1,6 +1,7 @@
 import QtQuick
 import IslandBackend
 import Quickshell.Services.Mpris
+import Quickshell.Widgets
 import "../controlcenter"
 
 Item {
@@ -277,12 +278,12 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 16
 
-                            Rectangle {
+                            ClippingRectangle {
                                 width: 60
                                 height: 60
-                                radius: 14
+                                radius: 10
                                 color: "#2c2c2e"
-                                clip: true
+                                antialiasing: true
 
                                 Image {
                                     anchors.fill: parent
@@ -290,6 +291,7 @@ Item {
                                     fillMode: Image.PreserveAspectCrop
                                     visible: source.toString() !== ""
                                     sourceSize: Qt.size(120, 120)
+                                    smooth: true
                                 }
                             }
 

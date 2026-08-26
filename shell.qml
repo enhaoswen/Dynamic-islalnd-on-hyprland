@@ -215,6 +215,10 @@ Scope {
             shellRoot.forFocusedWindow((window) => window.showClockWindow());
         }
 
+        function showTimer() {
+            shellRoot.forFocusedWindow((window) => window.showTimerWindow());
+        }
+
         function showCustom() {
             shellRoot.forFocusedWindow((window) => window.showCustomInfoWindow());
         }
@@ -237,6 +241,10 @@ Scope {
 
         function toggleControlCenter() {
             shellRoot.forFocusedWindow((window) => window.toggleControlCenterWindow());
+        }
+
+        function togglePowerMenu() {
+            shellRoot.forFocusedWindow((window) => window.togglePowerMenuWindow());
         }
 
         function toggleNotificationCenter() {

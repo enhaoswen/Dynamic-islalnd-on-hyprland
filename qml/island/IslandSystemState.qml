@@ -14,6 +14,8 @@ Item {
     property var configuredLeftSwipeItems: []
     property string timeText: "00:00"
     property string dateText: "Mon, Jan 01"
+    property string currentTrack: ""
+    property string currentArtUrl: ""
     property int currentWorkspace: 1
     property bool customSwipeActive: false
     property bool lyricsCavaActive: false
@@ -79,6 +81,8 @@ Item {
     onCurrentWorkspaceChanged: syncCustomLeftItems()
     onTimeTextChanged: syncCustomLeftItems()
     onDateTextChanged: syncCustomLeftItems()
+    onCurrentTrackChanged: syncCustomLeftItems()
+    onCurrentArtUrlChanged: syncCustomLeftItems()
     Component.onCompleted: {
         syncCustomLeftItems();
         refreshMissingValues();
@@ -231,6 +235,21 @@ Item {
             };
         case "cava":
             return { id: itemId, kind: "cava" };
+        case "albumcover":
+            return {
+                id: itemId,
+                kind: "albumArt",
+                icon: "",
+                text: "",
+                artUrl: currentArtUrl
+            };
+        case "trackname":
+            return {
+                id: itemId,
+                kind: "trackName",
+                icon: "",
+                text: currentTrack !== "" ? currentTrack : "No music playing"
+            };
         case "storage":
             return {
                 id: itemId,
@@ -267,6 +286,7 @@ Item {
                 + "\u001f" + String(item.kind || "")
                 + "\u001f" + String(item.icon || "")
                 + "\u001f" + String(item.text || "")
+                + "\u001f" + String(item.artUrl || "")
                 + "\u001f" + String(item.level === undefined ? "" : item.level)
                 + "\u001f" + String(item.isCharging === undefined ? "" : item.isCharging)
                 + "\u001e";

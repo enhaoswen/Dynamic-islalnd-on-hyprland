@@ -8,7 +8,10 @@ Rectangle {
     signal selectionChanged(var itemIds)
 
     readonly property string configKey: "dynamicIslandLeftSwipeItems"
-    readonly property var defaultItems: ["cava", "battery"]
+    readonly property var defaultItems: [
+        "time", "date", "workspace", "storage", "battery",
+        "cpu", "ram", "cava", "albumcover", "trackname"
+    ]
     readonly property string iconFontFamily: String(ConfigStore.value("iconFontFamily", "JetBrainsMono Nerd Font"))
     readonly property int selectedSpacing: 8
     readonly property var componentDefinitions: [
@@ -20,7 +23,9 @@ Rectangle {
         { itemId: "workspace", displayName: "Workspace", previewText: "Workspace 2", previewIcon: "", previewKind: "text", previewWidth: 118 },
         { itemId: "cpu", displayName: "CPU", previewText: "CPU 38%", previewIcon: "\u{F035B}", previewKind: "iconText", previewWidth: 96 },
         { itemId: "ram", displayName: "RAM", previewText: "RAM 61%", previewIcon: "\u{F061A}", previewKind: "iconText", previewWidth: 96 },
-        { itemId: "cava", displayName: "Cava", previewText: "", previewIcon: "", previewKind: "cava", previewWidth: 76 }
+        { itemId: "cava", displayName: "Cava", previewText: "", previewIcon: "", previewKind: "cava", previewWidth: 76 },
+        { itemId: "albumcover", displayName: "Album cover", previewText: "", previewIcon: "", previewKind: "albumArt", previewWidth: 48 },
+        { itemId: "trackname", displayName: "Song name", previewText: "Song title", previewIcon: "", previewKind: "text", previewWidth: 100 }
     ]
 
     property bool dragActive: false
@@ -127,16 +132,24 @@ Rectangle {
     function loadFromConfig() {
         const source = listValues(ConfigStore.value(configKey, defaultItems));
         const seen = {};
+        let removedLyrics = false;
         selectedModel.clear();
 
         for (let index = 0; index < source.length; index++) {
             const itemId = normalizeItemId(source[index]);
+            if (itemId === "lyrics") {
+                removedLyrics = true;
+                continue;
+            }
             if (!isSupported(itemId) || seen[itemId])
                 continue;
 
             selectedModel.append({ itemId: itemId });
             seen[itemId] = true;
         }
+
+        if (removedLyrics)
+            notifySelectionChanged();
     }
 
     function notifySelectionChanged() {
@@ -455,8 +468,16 @@ Rectangle {
                 barColor: chip.fromSelection ? "white" : Theme.selectedColor
             }
 
+            AlbumCoverPreview {
+                visible: chip.chipKind === "albumArt"
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Text {
-                visible: chip.chipIcon !== "" && chip.chipKind !== "battery" && chip.chipKind !== "cava"
+                visible: chip.chipIcon !== ""
+                    && chip.chipKind !== "battery"
+                    && chip.chipKind !== "cava"
+                    && chip.chipKind !== "albumArt"
                 anchors.verticalCenter: parent.verticalCenter
                 text: chip.chipIcon
                 color: chip.fromSelection ? "white" : Theme.selectedColor
@@ -465,7 +486,7 @@ Rectangle {
             }
 
             Text {
-                visible: chip.chipKind !== "cava"
+                visible: chip.chipKind !== "cava" && chip.chipKind !== "albumArt"
                 anchors.verticalCenter: parent.verticalCenter
                 text: chip.chipText
                 color: chip.fromSelection ? "white" : Theme.textColor
@@ -582,6 +603,35 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     color: cavaPreview.barColor
                 }
+            }
+        }
+    }
+
+    component AlbumCoverPreview: Item {
+        width: 28
+        height: 28
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 7
+            color: Theme.darkMode ? "#6d5148" : "#b87863"
+            border.width: 1
+            border.color: "#24ffffff"
+
+            gradient: Gradient {
+                GradientStop { position: 0; color: Theme.darkMode ? "#a56e5a" : "#d79a83" }
+                GradientStop { position: 1; color: Theme.darkMode ? "#493b43" : "#7a6572" }
+            }
+
+            Rectangle {
+                width: 9
+                height: 2
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 5
+                anchors.bottomMargin: 5
+                radius: 1
+                color: "#b8ffffff"
             }
         }
     }

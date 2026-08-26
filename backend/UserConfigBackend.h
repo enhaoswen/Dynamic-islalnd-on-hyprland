@@ -187,9 +187,9 @@ private:
     QString m_wallpaperTransitionWave = QStringLiteral("20,20");
     bool m_wallpaperTransitionInvertY = false;
     QString m_iconFontFamily = QStringLiteral("JetBrainsMono Nerd Font");
-    QString m_textFontFamily = QStringLiteral("Inter Display");
-    QString m_heroFontFamily = QStringLiteral("Inter Display");
-    QString m_timeFontFamily = QStringLiteral("Inter Display");
+    QString m_textFontFamily = QStringLiteral("Sans Serif");
+    QString m_heroFontFamily = QStringLiteral("Sans Serif");
+    QString m_timeFontFamily = QStringLiteral("Sans Serif");
     QString m_clockFormat = QStringLiteral("12");
     QString m_tlpSudoPassword;
     QString m_tlpPermissionMode = QStringLiteral("skip");

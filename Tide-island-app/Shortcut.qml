@@ -48,6 +48,13 @@ PagePanel {
                 "method": "showClock"
             },
             {
+                "action": "Timer",
+                "mods": "SUPER",
+                "key": "T",
+                "target": "tide",
+                "method": "showTimer"
+            },
+            {
                 "action": "Music player",
                 "mods": "SUPER",
                 "key": "M",
@@ -60,6 +67,13 @@ PagePanel {
                 "key": "C",
                 "target": "tide",
                 "method": "toggleControlCenter"
+            },
+            {
+                "action": "Power menu",
+                "mods": "SUPER",
+                "key": "P",
+                "target": "tide",
+                "method": "togglePowerMenu"
             },
             {
                 "action": "Notification history",
