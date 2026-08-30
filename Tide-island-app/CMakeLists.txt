@@ -92,7 +92,10 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/TideIsland
 install(FILES tide-island-config.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
-
+install(FILES icons/tide-island.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
+    RENAME tide-island.png
+)
 add_test(NAME tide_island_config_qml
     COMMAND tide-island-config-app --validate-qml
 )

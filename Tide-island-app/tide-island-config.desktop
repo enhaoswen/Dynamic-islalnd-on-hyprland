@@ -2,7 +2,7 @@
 Name=Tide Island Settings
 Comment=Configure Tide Island
 Exec=/usr/bin/tide-island-config-app
-Icon=preferences-system
+Icon=tide-island
 Terminal=false
 Type=Application
 Categories=Settings;DesktopSettings;
