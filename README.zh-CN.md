@@ -263,6 +263,26 @@ journalctl --user -u tide-island -f
 - Discord: https://discord.gg/Rcj3uPtKwD
 - Email: enhaoswen@gmail.com
 
+
+## 收藏
+
+<a href="https://star-history.com/#enhaoswen/Tide-island&Date">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://api.star-history.com/svg?repos=enhaoswen/Tide-island&type=Date&theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://api.star-history.com/svg?repos=enhaoswen/Tide-island&type=Date"
+    />
+    <img
+      alt="Star History Chart"
+      src="https://api.star-history.com/svg?repos=enhaoswen/Tide-island&type=Date"
+    />
+  </picture>
+</a>
+
 ---
 
 <p align="center">
